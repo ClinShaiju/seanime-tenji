@@ -1,0 +1,41 @@
+export const BRAND_ACCENT = "#a39dd7"
+export const BRAND_ACCENT_TINT = "rgba(97,82,223,0.16)"
+export const BRAND_ACCENT_BORDER = "rgba(97,82,223,0.25)"
+export const QUIET_HUD_TEXT = "rgba(255,255,255,0.92)"
+
+// Timing
+export const CONTROLS_HIDE_DELAY = 4000
+export const LOCKED_CONTROLS_HIDE_DELAY = 1200
+
+// Gestures
+export const DOUBLE_TAP_THRESHOLD = 300
+export const TAP_GESTURE_MAX_DISTANCE = 20
+export const DOUBLE_TAP_INDICATOR_VISIBLE_MS = 680
+export const LONG_PRESS_MIN_DURATION = 400
+export const CENTER_TAP_ZONE_RATIO = 0.26
+export const DOUBLE_TAP_SEEK_EDGE_ZONE_RATIO = 0.3
+export const SWIPE_SEEK_SENSITIVITY = 0.4
+export const SWIPE_ACTIVATION_THRESHOLD = 12
+export const GESTURE_DIRECTION_LOCK_RATIO = 1.15
+export const SIDE_ADJUST_ZONE_RATIO = 0.32
+export const SIDE_ADJUST_ACTIVATION_THRESHOLD = 12
+export const PAN_GESTURE_MIN_DISTANCE = 16
+export const SIDE_ADJUST_FEEDBACK_HIDE_DELAY = 900
+export const CENTER_TAP_FEEDBACK_HIDE_DELAY = 560
+
+// Video
+export const DEFAULT_VIDEO_ASPECT_RATIO = 16 / 9
+
+// Auto-next
+export const NEXT_EPISODE_CONFIRM_REMAINING_SECONDS = 90
+export const NEXT_EPISODE_CONFIRM_PROGRESS_THRESHOLD = 0.92
+export const AUTO_NEXT_TRIGGER_REMAINING_SECONDS = 4
+export const AUTO_NEXT_TRIGGER_PROGRESS_THRESHOLD = 0.97
+export const AUTO_NEXT_COUNTDOWN_SECONDS = 5
+
+// Settings options
+export const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0, 4.0]
+export const BUTTON_SEEK_OPTIONS = [3, 5, 10, 15, 30]
+export const SUBTITLE_DELAY_STEP = 0.1
+export const AUDIO_DELAY_STEP = 0.1
+export const SUBTITLE_FONT_SIZE_OPTIONS = [24, 32, 40, 48, 56, 64, 72, 80]

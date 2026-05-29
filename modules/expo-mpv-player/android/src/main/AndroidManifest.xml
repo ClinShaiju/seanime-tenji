@@ -1,0 +1,3 @@
+<manifest>
+    <!-- No permissions needed — the host app provides network/storage -->
+</manifest>
