@@ -7,7 +7,7 @@ import Ionicons from "@expo/vector-icons/Ionicons"
 import { LinearGradient } from "expo-linear-gradient"
 import { router } from "expo-router"
 import * as React from "react"
-import { InteractionManager, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native"
+import { InteractionManager, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native"
 import Animated, {
     Extrapolation,
     interpolate,
@@ -21,7 +21,6 @@ import Animated, {
     withTiming,
 } from "react-native-reanimated"
 
-export const LIBRARY_HERO_HEIGHT = 310
 const AUTO_ROTATE_INTERVAL = 20000
 const MAX_ITEMS = 12
 const HERO_BACKGROUND = COLORS.background
@@ -73,8 +72,8 @@ export function LibraryHeroCarousel({
 }: LibraryHeroCarouselProps) {
     const { height: screenHeight, width: screenWidth } = useWindowDimensions()
 
-    const isSmallScreen = screenHeight < 750
-    const isTablet = screenHeight > 950
+    const isTablet = Platform.OS === "ios" ? Platform.isPad : Math.min(screenWidth, screenHeight) >= 600
+    const isSmallScreen = !isTablet && screenHeight < 750
     const heroHeight = isSmallScreen ? 260 : isTablet ? 380 : 310
     const titleFontSize = isSmallScreen ? 22 : isTablet ? 30 : 26
 
