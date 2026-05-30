@@ -14,11 +14,14 @@ import Animated, {
     useAnimatedScrollHandler,
     useAnimatedStyle,
     useSharedValue,
+    withRepeat,
+    withSequence,
+    withTiming,
 } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export const HERO_HEIGHT = 320
-const AUTO_ROTATE_INTERVAL = 8000
+const AUTO_ROTATE_INTERVAL = 10000
 const MAX_ITEMS = 12
 const HERO_BACKGROUND = COLORS.background
 const HERO_BACKDROP = COLORS.mediaHeaderBackdrop
@@ -75,7 +78,7 @@ type DiscoverHeroCarouselInteractionLayerProps = {
 
 export function useDiscoverHeroItems(media: DiscoverHeroItem[]) {
     return React.useMemo(
-        () => media.filter(item => item.bannerImage || item.coverImage?.extraLarge).slice(0, MAX_ITEMS),
+        () => media.filter(item => !!item.bannerImage).slice(0, MAX_ITEMS),
         [media],
     )
 }
@@ -233,6 +236,7 @@ export function DiscoverHeroCarouselBackdrop({ media, currentIndex, screenWidth,
                                     item={item}
                                     scrollX={scrollX}
                                     screenWidth={screenWidth}
+                                    isActive={index === currentIndex}
                                 />
                             )
                         })}
@@ -296,22 +300,45 @@ function DiscoverHeroBackdropImage({
     item,
     scrollX,
     screenWidth,
+    isActive,
 }: {
     index: number
     item: DiscoverHeroItem
     scrollX: SharedValue<number>
     screenWidth: number
+    isActive: boolean
 }) {
     const uri = item.bannerImage || item.coverImage?.extraLarge || ""
+    const translationX = useSharedValue(0)
+
+    React.useEffect(() => {
+        const PAN_LIMIT = screenWidth * 0.12
+        if (isActive) {
+            translationX.value = withRepeat(
+                withSequence(
+                    withTiming(-PAN_LIMIT, { duration: AUTO_ROTATE_INTERVAL }),
+                    withTiming(PAN_LIMIT, { duration: AUTO_ROTATE_INTERVAL }),
+                ),
+                -1,
+                true,
+            )
+        } else {
+            translationX.value = withTiming(PAN_LIMIT, { duration: 400 })
+        }
+    }, [isActive, translationX, screenWidth])
+
     const animatedStyle = useAnimatedStyle(() => {
         const pageOffset = scrollX.value / Math.max(screenWidth, 1) - index
         const distance = Math.abs(pageOffset)
 
+        const swipeTranslateX = interpolate(pageOffset, [-1, 0, 1], [-18, 0, 18], Extrapolation.CLAMP)
+        const totalTranslateX = swipeTranslateX + translationX.value
+
         return {
             opacity: interpolate(distance, [0, 1], [1, 0], Extrapolation.CLAMP),
             transform: [
-                { translateX: interpolate(pageOffset, [-1, 0, 1], [-18, 0, 18], Extrapolation.CLAMP) },
-                { scale: interpolate(distance, [0, 1], [1, 1.05], Extrapolation.CLAMP) },
+                { translateX: totalTranslateX },
+                { scale: interpolate(distance, [0, 1], [1.0, 1.05], Extrapolation.CLAMP) },
             ],
         }
     })
@@ -325,7 +352,13 @@ function DiscoverHeroBackdropImage({
                 priority="low"
                 allowDownscaling
                 transition={0}
-                style={{ width: "100%", height: "100%" }}
+                style={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    width: screenWidth * 1.35,
+                    left: -(screenWidth * 0.35) / 2,
+                }}
             />
         </Animated.View>
     )
@@ -403,29 +436,32 @@ export function DiscoverHeroCarouselInteractionLayer({ media, type, controller }
                     {title}
                 </Text>
 
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                     {!!score && !hideAudienceScore && (
-                        <View style={{ marginLeft: 2 }}>
+                        <View style={{ marginLeft: 2, marginRight: 4 }}>
                             <MediaEntryAudienceScore score={score} />
                         </View>
                     )}
-                    {genres.map((genre) => (
-                        <View
-                            key={genre}
-                            style={{
-                                paddingHorizontal: 3,
-                                paddingVertical: 2,
-                                borderRadius: 100,
-                            }}
-                        >
+                    {genres.map((genre, idx) => (
+                        <React.Fragment key={genre}>
+                            {idx > 0 && (
+                                <Text style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, fontWeight: "bold" }}> • </Text>
+                            )}
                             <Text
-                                style={{ color: "rgba(255,255,255,0.82)", fontSize: 12, fontWeight: "600" }}
+                                style={{
+                                    color: "rgba(255,255,255,0.55)",
+                                    fontSize: 10,
+                                    fontWeight: "600",
+                                    textTransform: "uppercase",
+                                    letterSpacing: 0.5,
+                                }}
                             >
                                 {genre}
                             </Text>
-                        </View>
+                        </React.Fragment>
                     ))}
                 </View>
+
             </View>
 
             {media.length > 1 && (

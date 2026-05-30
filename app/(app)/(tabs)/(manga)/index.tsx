@@ -1,19 +1,22 @@
 import { AL_BaseManga } from "@/api/generated/types"
 import { DownloadedMangaList } from "@/components/features/manga/downloaded-manga-list"
 import { HorizontalMediaCardList } from "@/components/features/media/horizontal-media-card-list"
+import { LibraryHeroCarousel } from "@/components/features/media/library-hero-carousel"
 import { MediaEntryGrid } from "@/components/features/media/media-entry-grid"
-import { SafeView } from "@/components/layout/layout-view"
 import { TabFadeView } from "@/components/layout/tab-fade-view"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
-import { LIBRARY_SEARCH_HEADER_TOTAL_HEIGHT, LibrarySearchHeader } from "@/components/shared/library-search-header"
+import { LIBRARY_SEARCH_HEADER_BASE_HEIGHT, LibrarySearchHeader } from "@/components/shared/library-search-header"
 import { OfflineBanner } from "@/components/shared/offline-banner"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useMangaLibraryCollection } from "@/hooks/use-manga-library-collection"
 import { useIsServerConnected } from "@/lib/offline"
 import { filterEntriesByTitle } from "@/lib/utils/filtering"
+import { useIsFocused } from "@react-navigation/native"
 import { router, useFocusEffect } from "expo-router"
 import * as React from "react"
-import { FlatList, RefreshControl, View } from "react-native"
+import { RefreshControl, View } from "react-native"
+import Animated, { useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type MangaShelfSection = {
     key: string
@@ -22,12 +25,21 @@ type MangaShelfSection = {
     sectionIndex: number
 }
 
-
 export default function MangaLibraryScreen() {
     const isConnected = useIsServerConnected()
+    const isFocused = useIsFocused()
+    const insets = useSafeAreaInsets()
     const [searchQuery, setSearchQuery] = React.useState("")
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
     const [isPullRefreshing, setIsPullRefreshing] = React.useState(false)
+
+    const scrollY = useSharedValue(0)
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (e) => {
+            "worklet"
+            scrollY.value = e.contentOffset.y
+        },
+    })
 
     useIOSScrollRefreshRateWorkaround()
 
@@ -56,6 +68,10 @@ export default function MangaLibraryScreen() {
 
     const isSearching = searchQuery.trim().length > 0
 
+    const currentlyReadingEntries = React.useMemo(() => {
+        return libraryCollectionList.find(item => item.type === "CURRENT")?.entries ?? []
+    }, [libraryCollectionList])
+
     const shelfSections = React.useMemo<MangaShelfSection[]>(() => {
         const buildMedia = (type: string) => (
             libraryCollectionList.find(item => item.type === type)?.entries?.map(entry => entry.media!).filter(Boolean) ?? []
@@ -77,6 +93,9 @@ export default function MangaLibraryScreen() {
         }, [isConnected]),
     )
 
+    const hasHero = isConnected && currentlyReadingEntries.length > 0 && !isSearching
+    const searchHeaderHeight = isConnected ? LIBRARY_SEARCH_HEADER_BASE_HEIGHT : 0
+
     const handleRefresh = React.useCallback(() => {
         setIsPullRefreshing(true)
         void refetch().finally(() => {
@@ -89,16 +108,9 @@ export default function MangaLibraryScreen() {
             refreshing={isPullRefreshing}
             onRefresh={handleRefresh}
             tintColor="rgba(255,255,255,0.45)"
+            progressViewOffset={hasHero ? (insets.top + 60) : 60}
         />
     ) : undefined
-
-    if (isLoading && isConnected) {
-        return (
-            <SafeView>
-                <CenteredSpinner />
-            </SafeView>
-        )
-    }
 
     const renderShelfSection = React.useCallback(({ item }: { item: MangaShelfSection }) => (
         <HorizontalMediaCardList
@@ -110,37 +122,53 @@ export default function MangaLibraryScreen() {
         />
     ), [])
 
+    if (isLoading && isConnected) {
+        return (
+            <View
+                className="flex-1 bg-background justify-center items-center"
+                style={{ paddingTop: insets.top }}
+            >
+                <CenteredSpinner />
+            </View>
+        )
+    }
+
     return (
-        <SafeView>
+        <View
+            className="flex-1 bg-background"
+            style={{ paddingTop: hasHero ? 0 : insets.top }}
+        >
             <TabFadeView>
                 <OfflineBanner />
 
                 <View className="flex-1">
-                    {isConnected && (
-                        <LibrarySearchHeader
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            placeholder="Search manga..."
-                        />
-                    )}
-
                     {isSearching ? (
                         <MediaEntryGrid
                             type="manga"
                             media={searchResults}
                             query={searchQuery}
                             onPress={(media) => router.push(`/(app)/entry/manga/${media.id}`)}
-                            topPadding={isConnected ? LIBRARY_SEARCH_HEADER_TOTAL_HEIGHT : 8}
+                            topPadding={searchHeaderHeight}
                         />
                     ) : (
-                        <FlatList
+                        <Animated.FlatList
                             data={isConnected ? shelfSections : []}
                             renderItem={renderShelfSection}
                             keyExtractor={(item) => item.key}
+                            ListHeaderComponent={
+                                hasHero ? (
+                                    <LibraryHeroCarousel
+                                        type="manga"
+                                        mangaItems={currentlyReadingEntries}
+                                        isFocused={isFocused}
+                                        scrollY={scrollY}
+                                    />
+                                ) : null
+                            }
                             ListFooterComponent={<DownloadedMangaList />}
-                            contentInsetAdjustmentBehavior="automatic"
+                            contentInsetAdjustmentBehavior="never"
                             contentContainerStyle={{
-                                paddingTop: isConnected ? LIBRARY_SEARCH_HEADER_TOTAL_HEIGHT : 0,
+                                paddingTop: hasHero ? 0 : searchHeaderHeight,
                                 paddingBottom: 80,
                             }}
                             showsVerticalScrollIndicator={false}
@@ -150,10 +178,25 @@ export default function MangaLibraryScreen() {
                             updateCellsBatchingPeriod={16}
                             windowSize={5}
                             removeClippedSubviews
+                            onScroll={scrollHandler}
+                            scrollEventThrottle={16}
+                        />
+                    )}
+
+                    {isConnected && (
+                        <LibrarySearchHeader
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="Search manga..."
+                            scrollY={scrollY}
+                            hasHero={hasHero}
                         />
                     )}
                 </View>
             </TabFadeView>
-        </SafeView>
+        </View>
     )
 }
+
+
+

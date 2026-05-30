@@ -82,9 +82,7 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
     const [selectedFileId, setSelectedFileId] = React.useState<string | null>(null)
     const [selectedProviderId, setSelectedProviderId] = React.useState<string>(NONE_PROVIDER)
     const [searchMode, setSearchMode] = React.useState<TorrentSearchMode>("smart")
-    const [searchQuery, setSearchQuery] = React.useState(
-        entry.media?.title?.romaji || entry.media?.title?.english || entry.media?.title?.userPreferred || "",
-    )
+    const [searchQuery, setSearchQuery] = React.useState("")
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
     const [smartSearchBatch, setSmartSearchBatch] = React.useState(false)
     const [torrentResolution, setTorrentResolutionState] = React.useState<TorrentResolution>(
@@ -196,6 +194,15 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
 
         setSearchMode("smart")
     }, [pickerOpen, selectedProvider?.settings?.canSmartSearch])
+
+    React.useEffect(() => {
+        if (searchMode === "smart") {
+            setSearchQuery("")
+        } else if (searchMode === "simple") {
+            const title = entry.media?.title?.romaji || entry.media?.title?.english || entry.media?.title?.userPreferred || ""
+            setSearchQuery(title)
+        }
+    }, [searchMode, entry.media?.title?.romaji, entry.media?.title?.english, entry.media?.title?.userPreferred])
 
     const mediaId = entry.media?.id ?? 0
     const absoluteOffset = entry.downloadInfo?.absoluteOffset ?? 0

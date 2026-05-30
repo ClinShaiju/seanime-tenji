@@ -45,38 +45,44 @@ export function LibrarySearchBar({
     }))
 
     return (
-        <Animated.View
-            className={cn(
-                "flex-row items-center h-11 rounded-2xl bg-white/[0.04] px-3 gap-2",
-                className,
-            )}
-            // style={animatedContainerStyle}
+        <Pressable
+            onPress={() => inputRef.current?.focus()}
+            style={{ flex: 1 }}
         >
-            <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.35)" />
-            <TextInput
-                ref={inputRef}
-                value={value}
-                onChangeText={onChangeText}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                placeholder={placeholder}
-                placeholderTextColor="rgba(255,255,255,0.30)"
-                className="flex-1 text-white"
-                returnKeyType="search"
-                autoCorrect={false}
-                autoCapitalize="none"
-                clearButtonMode="never"
-                autoFocus={autoFocus}
-            />
-            {value.length > 0 && (
-                <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)}>
-                    <Pressable onPress={handleClear} hitSlop={8}>
-                        <View className="h-5 w-5 items-center justify-center rounded-full bg-white/15">
-                            <Ionicons name="close" size={12} color="rgba(255,255,255,0.65)" />
-                        </View>
-                    </Pressable>
-                </Animated.View>
-            )}
-        </Animated.View>
+            <Animated.View
+                className={cn(
+                    "flex-row items-center h-11 rounded-2xl bg-white/[0.04] px-3 gap-2",
+                    className,
+                )}
+            // style={animatedContainerStyle}
+            >
+                <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.35)" />
+                <TextInput
+                    ref={inputRef}
+                    value={value}
+                    onChangeText={onChangeText}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    placeholder={placeholder}
+                    placeholderTextColor="rgba(255,255,255,0.30)"
+                    className="flex-1 text-white h-full"
+                    returnKeyType="search"
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    clearButtonMode="never"
+                    autoFocus={autoFocus}
+                />
+                {value.length > 0 && (
+                    <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)}>
+                        <Pressable onPress={handleClear} hitSlop={8}>
+                            <View className="h-5 w-5 items-center justify-center rounded-full bg-white/15">
+                                <Ionicons name="close" size={12} color="rgba(255,255,255,0.65)" />
+                            </View>
+                        </Pressable>
+                    </Animated.View>
+                )}
+            </Animated.View>
+        </Pressable>
     )
 }
+

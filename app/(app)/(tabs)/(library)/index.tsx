@@ -1,20 +1,25 @@
 import { AL_BaseAnime } from "@/api/generated/types"
+import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
 import { ContinueWatching } from "@/components/features/anime/continue-watching"
 import { DownloadedAnimeList } from "@/components/features/anime/downloaded-anime-list"
 import { HorizontalMediaCardList } from "@/components/features/media/horizontal-media-card-list"
+import { LibraryHeroCarousel } from "@/components/features/media/library-hero-carousel"
 import { MediaEntryGrid } from "@/components/features/media/media-entry-grid"
-import { SafeView } from "@/components/layout/layout-view"
 import { TabFadeView } from "@/components/layout/tab-fade-view"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
-import { LIBRARY_SEARCH_HEADER_TOTAL_HEIGHT, LibrarySearchHeader } from "@/components/shared/library-search-header"
+import { LIBRARY_SEARCH_HEADER_BASE_HEIGHT, LibrarySearchHeader } from "@/components/shared/library-search-header"
 import { OfflineBanner } from "@/components/shared/offline-banner"
-import { useAnimeLibraryCollection } from "@/hooks/use-anime-library-collection"
+import { ContinueWatchingItem, useAnimeLibraryCollection } from "@/hooks/use-anime-library-collection"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useIsServerConnected } from "@/lib/offline"
 import { filterEntriesByTitle } from "@/lib/utils/filtering"
+import { useIsFocused } from "@react-navigation/native"
 import { router, useFocusEffect } from "expo-router"
+import { useSetAtom } from "jotai"
 import * as React from "react"
-import { FlatList, RefreshControl, View } from "react-native"
+import { RefreshControl, View } from "react-native"
+import Animated, { useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type LibraryShelfSection = {
     key: string
@@ -23,12 +28,21 @@ type LibraryShelfSection = {
     sectionIndex: number
 }
 
-
 export default function LibraryScreen() {
     const isConnected = useIsServerConnected()
+    const isFocused = useIsFocused()
+    const insets = useSafeAreaInsets()
     const [searchQuery, setSearchQuery] = React.useState("")
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
     const [isPullRefreshing, setIsPullRefreshing] = React.useState(false)
+
+    const scrollY = useSharedValue(0)
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (e) => {
+            "worklet"
+            scrollY.value = e.contentOffset.y
+        },
+    })
 
     useIOSScrollRefreshRateWorkaround()
 
@@ -80,6 +94,9 @@ export default function LibraryScreen() {
         }, [isConnected]),
     )
 
+    const hasHero = isConnected && continueWatchingList.length > 0 && !isSearching
+    const searchHeaderHeight = isConnected ? LIBRARY_SEARCH_HEADER_BASE_HEIGHT : 0
+
     const handleRefresh = React.useCallback(() => {
         setIsPullRefreshing(true)
         void refetch().finally(() => {
@@ -92,8 +109,33 @@ export default function LibraryScreen() {
             refreshing={isPullRefreshing}
             onRefresh={handleRefresh}
             tintColor="rgba(255,255,255,0.45)"
+            progressViewOffset={hasHero ? (insets.top + 60) : 60}
         />
     ) : undefined
+
+    const setPlaybackIntent = useSetAtom(animeEntryPlaybackIntentAtom)
+
+    const handleWatchPress = React.useCallback((item: ContinueWatchingItem) => {
+        const episode = item.episode
+        const mediaId = episode.baseAnime?.id
+        if (!mediaId) return
+
+        if (item.sourceView === "library" && episode.localFile?.path) {
+            setPlaybackIntent(createAnimeEntryPlaybackIntent({
+                kind: "play-local-episode",
+                mediaId,
+                episodeNumber: episode.episodeNumber,
+            }))
+        }
+
+        router.push({
+            pathname: "/(app)/entry/anime/[id]",
+            params: {
+                id: String(mediaId),
+                initialView: item.sourceView,
+            },
+        })
+    }, [setPlaybackIntent])
 
     const renderShelfSection = React.useCallback(({ item }: { item: LibraryShelfSection }) => (
         <HorizontalMediaCardList
@@ -107,44 +149,57 @@ export default function LibraryScreen() {
 
     if (isLoading && isConnected) {
         return (
-            <SafeView>
+            <View
+                className="flex-1 bg-background justify-center items-center"
+                style={{ paddingTop: insets.top }}
+            >
                 <CenteredSpinner />
-            </SafeView>
+            </View>
         )
     }
 
     return (
-        <SafeView>
+        <View
+            className="flex-1 bg-background"
+            style={{ paddingTop: hasHero ? 0 : insets.top }}
+        >
             <TabFadeView>
                 <OfflineBanner />
 
                 <View className="flex-1">
-                    {isConnected && (
-                        <LibrarySearchHeader
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            placeholder="Search anime..."
-                        />
-                    )}
-
                     {isSearching ? (
                         <MediaEntryGrid
                             type="anime"
                             media={searchResults}
                             query={searchQuery}
                             onPress={(media) => router.push(`/(app)/entry/anime/${media.id}`)}
-                            topPadding={isConnected ? LIBRARY_SEARCH_HEADER_TOTAL_HEIGHT : 8}
+                            topPadding={searchHeaderHeight}
                         />
                     ) : (
-                        <FlatList
+                        <Animated.FlatList
                             data={isConnected ? shelfSections : []}
                             renderItem={renderShelfSection}
                             keyExtractor={(item) => item.key}
-                            ListHeaderComponent={isConnected ? <ContinueWatching items={continueWatchingList} /> : null}
+                            ListHeaderComponent={
+                                <View className="flex flex-col gap-4">
+                                    {hasHero && (
+                                        <LibraryHeroCarousel
+                                            type="anime"
+                                            animeItems={continueWatchingList}
+                                            isFocused={isFocused}
+                                            scrollY={scrollY}
+                                            onWatchPress={handleWatchPress}
+                                        />
+                                    )}
+                                    {isConnected && continueWatchingList.length > 0 && (
+                                        <ContinueWatching items={continueWatchingList} />
+                                    )}
+                                </View>
+                            }
                             ListFooterComponent={<DownloadedAnimeList />}
-                            contentInsetAdjustmentBehavior="automatic"
+                            contentInsetAdjustmentBehavior="never"
                             contentContainerStyle={{
-                                paddingTop: isConnected ? LIBRARY_SEARCH_HEADER_TOTAL_HEIGHT : 0,
+                                paddingTop: hasHero ? 0 : searchHeaderHeight,
                                 paddingBottom: 80,
                             }}
                             showsVerticalScrollIndicator={false}
@@ -154,10 +209,22 @@ export default function LibraryScreen() {
                             updateCellsBatchingPeriod={16}
                             windowSize={5}
                             removeClippedSubviews
+                            onScroll={scrollHandler}
+                            scrollEventThrottle={16}
+                        />
+                    )}
+
+                    {isConnected && (
+                        <LibrarySearchHeader
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="Search anime..."
+                            scrollY={scrollY}
+                            hasHero={hasHero}
                         />
                     )}
                 </View>
             </TabFadeView>
-        </SafeView>
+        </View>
     )
 }
