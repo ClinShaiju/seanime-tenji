@@ -34,6 +34,7 @@ import { useMpvPlayer } from "@/lib/player/use-mpv-player"
 import { toast } from "@/lib/utils/toast"
 import { useKeepAwake } from "expo-keep-awake"
 import { MpvPlayerView } from "expo-mpv-player"
+import * as NavigationBar from "expo-navigation-bar"
 import { useRouter } from "expo-router"
 import { useAtom, useAtomValue } from "jotai/react"
 import React from "react"
@@ -76,6 +77,19 @@ function PlayerScreenInner() {
 
     useKeepAwake()
     useLandscapeOrientationLock()
+
+    React.useEffect(() => {
+        if (Platform.OS === "android") {
+            void NavigationBar.setVisibilityAsync("hidden")
+            void NavigationBar.setBehaviorAsync("overlay-swipe")
+        }
+        return () => {
+            if (Platform.OS === "android") {
+                void NavigationBar.setVisibilityAsync("visible")
+                void NavigationBar.setBehaviorAsync("overlay-swipe")
+            }
+        }
+    }, [])
 
     React.useEffect(() => {
         return () => {

@@ -183,7 +183,7 @@ export function SideAdjustHUD({
                 right: kind === "volume" ? padR : undefined,
             }}
         >
-            <View className="items-center gap-2 rounded-3xl px-3 pt-3 pb-3" style={{ width: 68 }}>
+            <View className="items-center gap-2 rounded-3xl bg-black/60 px-3 pt-3 pb-3" style={{ width: 68 }}>
                 <View className="items-center justify-center rounded-full bg-white/10" style={{ width: 36, height: 36 }}>
                     {kind === "brightness"
                         ? <Sun size={16} color="#fff" />

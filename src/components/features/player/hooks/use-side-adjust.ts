@@ -174,7 +174,7 @@ export function useSideAdjust() {
             queueBrightnessWrite(nextValue)
         } else {
             volumeLevelRef.current = nextValue
-            void VolumeManager.setVolume(nextValue).catch(() => undefined)
+            void VolumeManager.setVolume(nextValue, { showUI: false }).catch(() => undefined)
         }
     }, [queueBrightnessWrite, sideAdjustProgress])
 
