@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
 import React from "react"
-import { Text, View } from "react-native"
+import { Text, useWindowDimensions, View } from "react-native"
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated"
 
 interface AutoNextCardProps {
@@ -27,6 +27,9 @@ export function AutoNextCard({
     countdown, nextEpisodeLabel, controlsVisible, controlsLocked,
     padR, insets, onCancel, onPlayNow,
 }: AutoNextCardProps) {
+    const { width: screenWidth } = useWindowDimensions()
+    const cardWidth = Math.min(340, Math.max(260, screenWidth * 0.38))
+
     return (
         <Animated.View
             entering={FadeIn.duration(180)}
@@ -35,10 +38,10 @@ export function AutoNextCard({
             style={{
                 right: padR,
                 bottom: Math.max(insets.bottom, 16) + (controlsVisible && !controlsLocked ? 112 : 18),
-                maxWidth: 240,
+                width: cardWidth,
             }}
         >
-            <View className="gap-2.5 rounded-2xl border border-white/10 bg-black/90 px-4 py-3.5">
+            <View className="w-full gap-2.5 rounded-2xl border border-white/10 bg-black/90 px-4 py-3.5">
                 <View className="gap-1">
                     <Text className="text-xs font-bold uppercase tracking-wide text-white/50">
                         Up next
@@ -51,13 +54,17 @@ export function AutoNextCard({
                     </Text>
                 </View>
 
-                <View className="flex-row gap-2">
-                    <Button variant="outline" className="flex-1" onPress={onCancel}>
-                        <Text className="text-sm font-semibold text-foreground">Cancel</Text>
+                <View className="w-full flex-row gap-2">
+                    <Button variant="outline" className="min-w-0 flex-1" onPress={onCancel}>
+                        <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>
+                            Cancel
+                        </Text>
                     </Button>
 
-                    <Button className="flex-1" onPress={onPlayNow}>
-                        <Text className="text-sm font-bold">Play now</Text>
+                    <Button className="min-w-0 flex-1" onPress={onPlayNow}>
+                        <Text className="text-sm font-bold" numberOfLines={1}>
+                            Play now
+                        </Text>
                     </Button>
                 </View>
             </View>
