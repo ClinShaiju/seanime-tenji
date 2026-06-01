@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://seanime.app/docs">Documentation</a> |
-  <a href="https://github.com/5rahim/seanime-tenji-releases/releases">Latest release</a> |
+  <a href="https://github.com/5rahim/seanime-tenji/releases">Latest release</a> |
   <a href="https://discord.gg/Sbr7Phzt6m">Discord</a> |
   <a href="https://seanime.app/docs/policies">Copyright</a>
 </p>

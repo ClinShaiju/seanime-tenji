@@ -10,7 +10,7 @@ type AppRelease = {
     name?: string
 }
 
-const APP_RELEASE_REPOSITORY = "5rahim/seanime-tenji-releases"
+const APP_RELEASE_REPOSITORY = "5rahim/seanime-tenji"
 const APP_RELEASE_URL = `https://github.com/${APP_RELEASE_REPOSITORY}/releases/latest`
 const APP_RELEASE_API_URL = `https://api.github.com/repos/${APP_RELEASE_REPOSITORY}/releases/latest`
 const APP_RELEASE_CHECK_DELAY_MS = 10000
