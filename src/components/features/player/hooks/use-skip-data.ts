@@ -150,14 +150,14 @@ export function useSkipData({
     const showSkipIntro = Boolean(
         skipData.op &&
         currentTime >= skipData.op.interval.startTime &&
-        currentTime <= skipData.op.interval.startTime + 12 &&
+        currentTime <= skipData.op.interval.startTime + 15 &&
         !autoSkipOpEd,
     )
 
     const showSkipOutro = Boolean(
         skipData.ed &&
         currentTime >= skipData.ed.interval.startTime &&
-        currentTime <= skipData.ed.interval.startTime + 12 &&
+        currentTime <= skipData.ed.interval.startTime + 15 &&
         !autoSkipOpEd,
     )
 

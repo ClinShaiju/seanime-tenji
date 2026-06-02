@@ -31,6 +31,7 @@ export type PlayerPreferences = {
      * e.g. "eng, en, english". First match wins.
      */
     preferredSubtitleLanguages: string
+    ignoredSubtitleLabels: string
     /** Seek amount in seconds for double-tap gestures. Default 3. */
     doubleTapSeekSec: number
     /** Seek amount in seconds for forward/back controls. Default 3. */
@@ -63,6 +64,7 @@ const DEFAULTS: PlayerPreferences = {
     showSubtitles: true,
     preferredAudioLanguages: "jpn, jp, ja, japanese",
     preferredSubtitleLanguages: "eng, en, english",
+    ignoredSubtitleLabels: "signs & songs, signs, songs, sign, song",
     doubleTapSeekSec: 3,
     buttonSeekSec: 3,
     longPressFastForwardSpeed: 2.0,
@@ -135,14 +137,23 @@ function parseLanguageTags(pref: string): string[] {
 export function findPreferredTrack(
     tracks: Array<{ id: number; language?: string; title?: string }>,
     preferenceString: string,
+    ignoredString?: string,
 ): number | null {
     if (!tracks.length || !preferenceString.trim()) return null
 
     const tags = parseLanguageTags(preferenceString)
+    const ignoredTags = ignoredString ? parseLanguageTags(ignoredString) : []
+
     for (const tag of tags) {
         for (const track of tracks) {
             const lang = (track.language ?? "").toLowerCase()
             const title = (track.title ?? "").toLowerCase()
+
+            const isIgnored = ignoredTags.some(iTag => {
+                return lang.includes(iTag) || title.includes(iTag)
+            })
+            if (isIgnored) continue
+
             if (lang.includes(tag) || title.includes(tag)) {
                 return track.id
             }

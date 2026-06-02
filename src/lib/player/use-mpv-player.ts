@@ -353,7 +353,7 @@ export function useMpvPlayer() {
             }
         }
 
-        const preferredSub = findPreferredTrack(state.subtitleTracks, prefs.preferredSubtitleLanguages)
+        const preferredSub = findPreferredTrack(state.subtitleTracks, prefs.preferredSubtitleLanguages, prefs.ignoredSubtitleLabels)
         if (preferredSub !== null) {
             const currentSub = state.subtitleTracks.find(t => t.selected)
             if (currentSub?.id !== preferredSub) {

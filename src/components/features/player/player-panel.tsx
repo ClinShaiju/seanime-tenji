@@ -135,9 +135,9 @@ export function PlayerPanelOverlay(props: PlayerPanelOverlayProps) {
                 exiting={SlideOutRight.duration(150)}
                 className="absolute bottom-0 right-0 top-0 border-l border-white/5 bg-black/95 z-[100]"
                 style={{
-                    width: 340 + insets.right,
+                    width: 340 + insets.right * 0.5,
                     paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8,
-                    paddingRight: insets.right,
+                    paddingRight: insets.right * 0.5,
                     zIndex: 100,
                 }}
             >
@@ -280,10 +280,14 @@ export function PlayerPanelOverlay(props: PlayerPanelOverlayProps) {
                         />
                     )}
                     {panel === "default-subtitle-lang" && (
-                        <LanguagePrefContent
-                            label="Subtitle" current={prefs.preferredSubtitleLanguages}
-                            onSave={(v) => {
-                                updatePrefs({ preferredSubtitleLanguages: v })
+                        <SubtitleLanguagePrefContent
+                            preferred={prefs.preferredSubtitleLanguages}
+                            ignored={prefs.ignoredSubtitleLabels}
+                            onSave={(pref, ignored) => {
+                                updatePrefs({
+                                    preferredSubtitleLanguages: pref,
+                                    ignoredSubtitleLabels: ignored,
+                                })
                                 onNavigate("audio-subtitles")
                             }}
                         />
@@ -1037,6 +1041,66 @@ function LanguagePrefContent({ label, current, onSave }: {
             <View className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
                 <Text className="text-xs leading-4 text-white/30">
                     {"Examples:\n\u2022 Japanese audio: jpn, jp, ja, japanese\n\u2022 English subs: eng, en, english\n\u2022 Multi: jpn, eng, kor"}
+                </Text>
+            </View>
+        </View>
+    )
+}
+
+function SubtitleLanguagePrefContent({
+    preferred,
+    ignored,
+    onSave,
+}: {
+    preferred: string
+    ignored: string
+    onSave: (pref: string, ignored: string) => void
+}) {
+    const [prefVal, setPrefVal] = React.useState(preferred)
+    const [ignoredVal, setIgnoredVal] = React.useState(ignored)
+
+    return (
+        <View className="gap-4">
+            <Text className="text-sm leading-5 text-white/50">
+                {"Configure subtitle track defaults and filters. The first matching track that does not contain any of the ignored labels will be selected."}
+            </Text>
+            <View className="gap-1.5">
+                <SectionLabel>Preferred Subtitle Languages</SectionLabel>
+                <TextInput
+                    value={prefVal}
+                    onChangeText={setPrefVal}
+                    placeholder="e.g. eng, en, english"
+                    placeholderTextColor="rgba(255,255,255,0.2)"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    className={PANEL_INPUT_CLASS}
+                />
+            </View>
+            <View className="gap-1.5">
+                <SectionLabel>Ignored Labels</SectionLabel>
+                <TextInput
+                    value={ignoredVal}
+                    onChangeText={setIgnoredVal}
+                    placeholder="e.g. signs & songs, signs, songs"
+                    placeholderTextColor="rgba(255,255,255,0.2)"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    className={PANEL_INPUT_CLASS}
+                />
+                <Text className="text-xs text-white/30 px-0.5">
+                    Avoid tracks containing these labels (comma-separated).
+                </Text>
+            </View>
+            <Pressable onPress={() => onSave(prefVal, ignoredVal)}>
+                {({ pressed }) => (
+                    <View className={cn("items-center rounded-xl border border-player-tint/25 bg-player-tint/15 py-3", pressed && "opacity-70")}>
+                        <Text className="text-sm font-semibold text-player-text">Save</Text>
+                    </View>
+                )}
+            </Pressable>
+            <View className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+                <Text className="text-xs leading-4 text-white/30">
+                    {"Examples:\n\u2022 Preferred: eng, en, english\n\u2022 Ignored: signs & songs, signs, songs, sign, song"}
                 </Text>
             </View>
         </View>

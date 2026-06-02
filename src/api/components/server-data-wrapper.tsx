@@ -5,6 +5,7 @@ import { useServerAuthToken, useServerStatus, useServerUrl, useSetServerStatus, 
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { IMAGES } from "@/constants/images"
+import { useManualOfflineMode } from "@/lib/offline"
 import { isServerVersionSupported, MIN_SERVER_VERSION } from "@/lib/server-version"
 import { router, usePathname } from "expo-router"
 import React from "react"
@@ -46,6 +47,8 @@ export function ServerDataWrapper({ children }: { children: React.ReactNode }) {
     // cached status from MMKV, available even when offline
     const cachedStatus = useServerStatus()
 
+    const [manualOffline, setManualOffline] = useManualOfflineMode()
+
     const { data: _serverStatus, isLoading } = useGetStatus()
 
     React.useEffect(() => {
@@ -62,6 +65,26 @@ export function ServerDataWrapper({ children }: { children: React.ReactNode }) {
         enabled: requiresServerAuth && !!serverAuthToken,
     })
     const isInvalidServerAuth = authVerification.error?.error === "UNAUTHENTICATED"
+
+    const isConnectingOrAuthenticating = !manualOffline && (
+        (isLoading && !effectiveStatus) ||
+        (requiresServerAuth && (!serverAuthToken || authVerification.isLoading || isInvalidServerAuth))
+    )
+
+    const [showOfflineFallback, setShowOfflineFallback] = React.useState(false)
+
+    React.useEffect(() => {
+        if (!isConnectingOrAuthenticating) {
+            setShowOfflineFallback(false)
+            return
+        }
+
+        const timer = setTimeout(() => {
+            setShowOfflineFallback(true)
+        }, 3000)
+
+        return () => clearTimeout(timer)
+    }, [isConnectingOrAuthenticating])
 
     const handleChangeUrlPress = React.useCallback(() => {
         Alert.alert(
@@ -88,6 +111,33 @@ export function ServerDataWrapper({ children }: { children: React.ReactNode }) {
             router.replace("/(out)/set-server-url")
         }
     }, [isInvalidServerAuth, requiresServerAuth, serverAuthToken, setServerStatus])
+
+    if (isConnectingOrAuthenticating && showOfflineFallback) {
+        return <View className="bg-background flex-1 justify-center items-center gap-6 px-8">
+            <Image source={IMAGES.logo2} style={{ width: 128, height: 128 }} resizeMode="contain" />
+            <View className="items-center gap-1.5">
+                <Text className="text-white text-base font-semibold">Connection is taking longer than expected</Text>
+                <Text className="text-white/45 text-sm text-center">The server might be offline. You can switch to offline mode or update the server
+                                                                    URL.</Text>
+            </View>
+            <View className="gap-3 w-full items-center">
+                <Button
+                    variant="default"
+                    className="w-full max-w-xs z-[50] shadow shadow-foreground/5 rounded-full"
+                    onPress={() => setManualOffline(true)}
+                >
+                    <Text>Switch to offline mode</Text>
+                </Button>
+                <Button
+                    variant="secondary"
+                    className="w-full max-w-xs z-[50] shadow shadow-foreground/5 rounded-full"
+                    onPress={handleChangeUrlPress}
+                >
+                    <Text>Change URL</Text>
+                </Button>
+            </View>
+        </View>
+    }
 
     if (isLoading && !effectiveStatus) {
         return <View className="bg-background flex-1 justify-center items-center gap-4">

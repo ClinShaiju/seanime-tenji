@@ -16,7 +16,6 @@
     "internal:dev:android:open": "bash ./scripts/android-dev.sh open",
     "internal:release:android": "bash ./scripts/android-build.sh",
     "internal:release:ios": "bash ./scripts/ios-build.sh",
-    "internal:release:publish": "bash ./scripts/publish-github-release.sh",
     "internal:release:android:github": "npm run internal:release:publish -- --platform android",
     "internal:release:ios:github": "npm run internal:release:publish -- --platform ios",
     "internal:release:github": "npm run internal:release:publish -- --platform all",
