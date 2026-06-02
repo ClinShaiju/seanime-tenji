@@ -6,7 +6,7 @@ import React from "react"
 import { Platform, Text, View, type ViewStyle } from "react-native"
 import { GestureDetector, Pressable } from "react-native-gesture-handler"
 import type { ComposedGesture, GestureType } from "react-native-gesture-handler"
-import Animated, { type AnimatedStyle, FadeIn, FadeOut } from "react-native-reanimated"
+import Animated, { type AnimatedStyle, FadeIn, FadeOut, type SharedValue, useAnimatedStyle } from "react-native-reanimated"
 import { BRAND_ACCENT } from "./constants"
 import { formatTime } from "./helpers"
 import type { PlayerPanel } from "./types"
@@ -42,6 +42,41 @@ export function PlayerIconButton({ icon, onPress, active, disabled }: {
     )
 }
 
+function SegmentFill({
+    seekBarProgress,
+    startProgress,
+    endProgress,
+}: {
+    seekBarProgress: SharedValue<number>
+    startProgress: number
+    endProgress: number
+}) {
+    const animatedStyle = useAnimatedStyle(() => {
+        const p = seekBarProgress.value
+        const ratio = (p - startProgress) / Math.max(0.0001, endProgress - startProgress)
+        const clamped = Math.min(1, Math.max(0, ratio))
+        return {
+            width: `${clamped * 100}%`,
+        }
+    })
+
+    return (
+        <Animated.View
+            style={[
+                {
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    backgroundColor: "#ffffff",
+                    borderRadius: 999,
+                },
+                animatedStyle,
+            ]}
+        />
+    )
+}
+
 interface ControlsOverlayProps {
     source: MobilePlaybackSource | null
     state: PlayerStateType
@@ -66,6 +101,8 @@ interface ControlsOverlayProps {
     setPanel: React.Dispatch<React.SetStateAction<PlayerPanel | null>>
     canPlayNext: boolean
     onManualNextEpisode: () => void
+    chapters: PlayerChapter[]
+    seekBarProgress: SharedValue<number>
 }
 
 export function ControlsOverlay(props: ControlsOverlayProps) {
@@ -77,6 +114,7 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
         displayTime, isSeeking, seekingChapter,
         onBack, onTogglePlayPause, scheduleHide, clearHideTimer, setPanel,
         canPlayNext, onManualNextEpisode,
+        chapters, seekBarProgress,
     } = props
 
     const extendHudPastHorizontalSafeArea = Platform.OS === "ios" && zoomMode === "fill"
@@ -84,6 +122,39 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
     const padR = extendHudPastHorizontalSafeArea ? 24 : insets.right + 16
     const topPadL = extendHudPastHorizontalSafeArea ? 12 : insets.left + 12
     const topPadR = extendHudPastHorizontalSafeArea ? 12 : insets.right + 12
+
+    const segments = React.useMemo(() => {
+        const duration = state.duration || 1
+        if (!chapters || chapters.length === 0) {
+            return [{
+                id: 0,
+                start: 0,
+                end: duration,
+                duration: duration,
+                startProgress: 0,
+                endProgress: 1,
+            }]
+        }
+
+        const sorted = [...chapters].sort((a, b) => a.start - b.start)
+        const list = []
+
+        for (let i = 0; i < sorted.length; i++) {
+            const start = i === 0 ? 0 : sorted[i].start
+            const nextStart = i < sorted.length - 1 ? sorted[i + 1].start : duration
+            const end = Math.max(start, nextStart)
+            const segDuration = Math.max(0.1, end - start)
+            list.push({
+                id: sorted[i].id,
+                start,
+                end,
+                duration: segDuration,
+                startProgress: Math.max(0, Math.min(1, start / duration)),
+                endProgress: Math.max(0, Math.min(1, end / duration)),
+            })
+        }
+        return list
+    }, [chapters, state.duration])
 
     return (
         <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)} pointerEvents="box-none" className="absolute inset-0">
@@ -173,34 +244,26 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
                                 }, seekBarGlowStyle]}
                             />
 
-                            <Animated.View className="overflow-hidden rounded-full bg-white/20" style={seekBarTrackStyle}>
-                                <Animated.View
-                                    style={[{
-                                        position: "absolute",
-                                        left: 0,
-                                        top: 0,
-                                        bottom: 0,
-                                        backgroundColor: "#ffffff",
-                                        borderRadius: 999,
-                                    }, seekBarFillStyle]}
-                                />
-
-                                {chapterMarkers.map((marker) => (
+                            <Animated.View className="w-full flex-row items-center gap-[3px]" style={seekBarTrackStyle}>
+                                {segments.map((segment, index) => (
                                     <View
-                                        key={marker.key}
-                                        pointerEvents="none"
+                                        key={index}
                                         style={{
-                                            position: "absolute",
-                                            left: marker.left,
-                                            top: 0,
-                                            bottom: 0,
-                                            width: 2,
+                                            flexGrow: segment.duration,
+                                            flexShrink: 1,
+                                            flexBasis: 0,
+                                            height: "100%",
+                                            backgroundColor: "rgba(255,255,255,0.2)",
                                             borderRadius: 999,
-                                            backgroundColor: progressRatio >= marker.progress
-                                                ? "rgba(255,255,255,0.8)"
-                                                : "rgba(255,255,255,0.48)",
+                                            overflow: "hidden",
                                         }}
-                                    />
+                                    >
+                                        <SegmentFill
+                                            seekBarProgress={seekBarProgress}
+                                            startProgress={segment.startProgress}
+                                            endProgress={segment.endProgress}
+                                        />
+                                    </View>
                                 ))}
                             </Animated.View>
 
@@ -267,6 +330,7 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
         </Animated.View>
     )
 }
+
 
 export function LockModeOverlay({
     insets,

@@ -52,6 +52,9 @@ type NextEpisodePrompt = {
 }
 
 const DEFAULT_TEXT_SUBTITLE_MARGIN_Y = 34
+const SEEK_SNAP_MAX_THRESHOLD = 4
+const SEEK_SNAP_DURATION_RATIO = 0.02
+const SEEK_SNAP_VERTICAL_DECAY = 15
 
 function isAssSubtitleCodec(codec?: string) {
     if (!codec) return false
@@ -264,6 +267,44 @@ function PlayerScreenInner() {
         return frac * gRef.current.duration
     }
 
+    const getSeekSnappedTime = React.useCallback((x: number, y: number) => {
+        const rawTime = getSeekTargetFromBarX(x)
+        const duration = gRef.current.duration
+        if (duration <= 0) return rawTime
+
+        const snapPoints = [0]
+        if (chapters && chapters.length > 0) {
+            for (const c of chapters) {
+                if (c.start > 0 && c.start < duration) {
+                    snapPoints.push(c.start)
+                }
+            }
+        }
+        snapPoints.push(duration)
+
+        const verticalDist = Math.abs(y - 18)
+        const maxThreshold = Math.min(SEEK_SNAP_MAX_THRESHOLD, duration * SEEK_SNAP_DURATION_RATIO)
+        const threshold = Math.max(0, maxThreshold - (verticalDist / SEEK_SNAP_VERTICAL_DECAY))
+
+        if (threshold <= 0) return rawTime
+
+        let nearest = snapPoints[0]
+        let minDiff = Math.abs(rawTime - nearest)
+
+        for (let i = 1; i < snapPoints.length; i++) {
+            const diff = Math.abs(rawTime - snapPoints[i])
+            if (diff < minDiff) {
+                minDiff = diff
+                nearest = snapPoints[i]
+            }
+        }
+
+        if (minDiff <= threshold) {
+            return nearest
+        }
+        return rawTime
+    }, [chapters, getSeekTargetFromBarX])
+
     const seekBarGesture = React.useMemo(() => {
         const tapGesture = Gesture.Tap()
             .maxDuration(250)
@@ -274,7 +315,7 @@ function PlayerScreenInner() {
             })
             .onEnd((e, success) => {
                 if (!success) return
-                player.seekTo(getSeekTargetFromBarX(e.x))
+                player.seekTo(getSeekSnappedTime(e.x, e.y))
                 controls.scheduleHide()
             })
 
@@ -282,12 +323,12 @@ function PlayerScreenInner() {
             .minDistance(2)
             .onBegin((e) => {
                 controls.clearHideTimer()
-                const target = getSeekTargetFromBarX(e.x)
+                const target = getSeekSnappedTime(e.x, e.y)
                 seekingRef.current = target
                 scheduleSeekingDisplayUpdate(target)
             })
             .onUpdate((e) => {
-                const target = getSeekTargetFromBarX(e.x)
+                const target = getSeekSnappedTime(e.x, e.y)
                 seekingRef.current = target
                 scheduleSeekingDisplayUpdate(target)
             })
@@ -305,7 +346,7 @@ function PlayerScreenInner() {
             .runOnJS(true)
 
         return Gesture.Race(tapGesture, panGesture)
-    }, [controls.clearHideTimer, controls.scheduleHide, getSeekTargetFromBarX, player.seekTo, scheduleSeekingDisplayUpdate])
+    }, [controls.clearHideTimer, controls.scheduleHide, getSeekSnappedTime, player.seekTo, scheduleSeekingDisplayUpdate])
 
     // zoom
     const [zoomMode, setZoomMode] = React.useState<"fit" | "fill">("fit")
@@ -887,6 +928,8 @@ function PlayerScreenInner() {
                         setPanel={setPanel}
                         canPlayNext={canPlayNext}
                         onManualNextEpisode={handleManualNextEpisode}
+                        chapters={chapters}
+                        seekBarProgress={seekBarProgress}
                     />
                 )}
 
