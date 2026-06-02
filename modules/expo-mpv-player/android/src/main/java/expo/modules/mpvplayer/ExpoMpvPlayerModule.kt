@@ -122,6 +122,7 @@ class ExpoMpvPlayerModule : Module() {
 
             // subtitle controls
             AsyncFunction("getSubtitleTracks") { view: MpvPlayerView -> view.getSubtitleTracks() }
+            AsyncFunction("getChapters") { view: MpvPlayerView -> view.getChapters() }
             AsyncFunction("setSubtitleTrack") { view: MpvPlayerView, trackId: Int -> view.setSubtitleTrack(trackId) }
             AsyncFunction("disableSubtitles") { view: MpvPlayerView -> view.disableSubtitles() }
             AsyncFunction("getCurrentSubtitleTrack") { view: MpvPlayerView -> view.getCurrentSubtitleTrack() }

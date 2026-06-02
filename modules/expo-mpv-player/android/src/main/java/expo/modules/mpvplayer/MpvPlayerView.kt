@@ -228,6 +228,10 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         return renderer?.getSubtitleTracks() ?: emptyList()
     }
 
+    fun getChapters(): List<Map<String, Any>> {
+        return renderer?.getChapters() ?: emptyList()
+    }
+
     fun setSubtitleTrack(trackId: Int) {
         renderer?.setSubtitleTrack(trackId)
     }

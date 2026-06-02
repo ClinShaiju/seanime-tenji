@@ -671,6 +671,26 @@ final class MPVLayerRenderer {
         return tracks
     }
 
+    func getChapters() -> [[String: Any]] {
+        guard let handle = mpv else { return [] }
+        var chapters: [[String: Any]] = []
+        var chapterCount: Int64 = 0
+        getProperty(handle: handle, name: "chapter-list/count", format: MPV_FORMAT_INT64, value: &chapterCount)
+
+        for i in 0..<chapterCount {
+            var chapter: [String: Any] = ["id": Int(i)]
+            if let title = getStringProperty(handle: handle, name: "chapter-list/\(i)/title") {
+                chapter["title"] = title
+            }
+            var time: Double = 0.0
+            getProperty(handle: handle, name: "chapter-list/\(i)/time", format: MPV_FORMAT_DOUBLE, value: &time)
+            chapter["time"] = time
+
+            chapters.append(chapter)
+        }
+        return chapters
+    }
+
     func setSubtitleTrack(_ trackId: Int) {
         if trackId < 0 {
             setProperty(name: "sid", value: "no")

@@ -29,6 +29,7 @@ export const MpvPlayerView = React.forwardRef<MpvPlayerViewRef, MpvPlayerViewPro
 
             // subtitle controls
             getSubtitleTracks: () => nativeRef.current?.getSubtitleTracks() ?? Promise.resolve([]),
+            getChapters: () => nativeRef.current?.getChapters() ?? Promise.resolve([]),
             setSubtitleTrack: (trackId: number) => nativeRef.current?.setSubtitleTrack(trackId) ?? Promise.resolve(),
             disableSubtitles: () => nativeRef.current?.disableSubtitles() ?? Promise.resolve(),
             getCurrentSubtitleTrack: () => nativeRef.current?.getCurrentSubtitleTrack() ?? Promise.resolve(0),

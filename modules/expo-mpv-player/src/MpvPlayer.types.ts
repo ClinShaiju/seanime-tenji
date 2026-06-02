@@ -82,6 +82,12 @@ export type AudioTrack = {
     selected: boolean
 }
 
+export type MpvChapter = {
+    id: number
+    title?: string
+    time: number
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Technical info
 ///////////////////////////////////////////////////////////////////////////////
@@ -120,6 +126,7 @@ export type MpvPlayerViewRef = {
 
     // subtitle controls
     getSubtitleTracks: () => Promise<SubtitleTrack[]>
+    getChapters: () => Promise<MpvChapter[]>
     setSubtitleTrack: (trackId: number) => Promise<void>
     disableSubtitles: () => Promise<void>
     getCurrentSubtitleTrack: () => Promise<number>

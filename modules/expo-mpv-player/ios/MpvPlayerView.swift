@@ -206,6 +206,7 @@ final class MpvSurfaceExpoView: ExpoView, MPVLayerRendererDelegate, PiPControlle
     // MARK: - Subtitle Controls
 
     func getSubtitleTracks() -> [[String: Any]] { return renderer?.getSubtitleTracks() ?? [] }
+    func getChapters() -> [[String: Any]] { return renderer?.getChapters() ?? [] }
     func setSubtitleTrack(_ trackId: Int) { renderer?.setSubtitleTrack(trackId) }
     func disableSubtitles() { renderer?.disableSubtitles() }
     func getCurrentSubtitleTrack() -> Int { return renderer?.getCurrentSubtitleTrack() ?? 0 }

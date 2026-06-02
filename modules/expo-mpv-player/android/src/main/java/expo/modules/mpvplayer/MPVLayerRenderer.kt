@@ -350,6 +350,35 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver {
         return tracks
     }
 
+    fun getChapters(): List<Map<String, Any>> {
+        if (!initialized) return emptyList()
+        val count = try {
+            MPVLib.getPropertyInt("chapter-list/count") ?: 0
+        } catch (_: Exception) {
+            0
+        }
+        val chapters = mutableListOf<Map<String, Any>>()
+
+        for (i in 0 until count) {
+            val chapter = mutableMapOf<String, Any>()
+            val title = try {
+                MPVLib.getPropertyString("chapter-list/$i/title") ?: ""
+            } catch (_: Exception) {
+                ""
+            }
+            val time = try {
+                MPVLib.getPropertyDouble("chapter-list/$i/time") ?: 0.0
+            } catch (_: Exception) {
+                0.0
+            }
+            chapter["title"] = title
+            chapter["time"] = time
+            chapter["id"] = i
+            chapters.add(chapter)
+        }
+        return chapters
+    }
+
     fun setSubtitleTrack(trackId: Int) {
         if (!initialized) return
         if (trackId == -1) {

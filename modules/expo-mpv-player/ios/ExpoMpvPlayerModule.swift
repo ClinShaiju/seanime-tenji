@@ -132,6 +132,10 @@ public class ExpoMpvPlayerModule: Module {
                 return view.getSubtitleTracks()
             }
 
+            AsyncFunction("getChapters") { (view: MpvSurfaceExpoView) -> [[String: Any]] in
+                return view.getChapters()
+            }
+
             AsyncFunction("setSubtitleTrack") { (view: MpvSurfaceExpoView, trackId: Int) in
                 view.setSubtitleTrack(trackId)
             }

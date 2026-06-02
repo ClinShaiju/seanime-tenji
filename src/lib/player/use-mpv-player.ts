@@ -256,9 +256,10 @@ export function useMpvPlayer() {
         if (!ref) return
 
         try {
-            const [subTracks, audioTracks] = await Promise.all([
+            const [subTracks, audioTracks, rawChapters] = await Promise.all([
                 ref.getSubtitleTracks(),
                 ref.getAudioTracks(),
+                ref.getChapters ? ref.getChapters() : Promise.resolve([]),
             ])
 
             const mappedSubs = subTracks.map(t => ({
@@ -277,11 +278,17 @@ export function useMpvPlayer() {
                 codec: t.codec,
                 selected: t.selected,
             }))
+            const mappedChapters = (rawChapters || []).map(c => ({
+                id: c.id,
+                start: c.time,
+                title: c.title,
+            }))
 
             setState(s => ({
                 ...s,
                 subtitleTracks: mappedSubs,
                 audioTracks: mappedAudio,
+                chapters: mappedChapters,
                 activeSubtitleTrackId: mappedSubs.find(t => t.selected)?.id ?? null,
                 activeAudioTrackId: mappedAudio.find(t => t.selected)?.id ?? null,
             }))
