@@ -7,7 +7,7 @@
 <h1 align="center"><b>Seanime Tenji</b></h1>
 
 <p align="center">
-<img src="https://seanime.app/bucket/img-20260530-115604-bh3pofrz--sq2.webp" alt="preview" width="100%"/>
+<img src="https://seanime.app/bucket/img-20260530-115604-bh3pofrz--sq3.webp" alt="preview" width="100%"/>
 </p>
 
 <p align="center">
