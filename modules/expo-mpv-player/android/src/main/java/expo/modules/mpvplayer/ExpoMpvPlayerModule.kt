@@ -43,6 +43,8 @@ class ExpoMpvPlayerModule : Module() {
             val inPiP = activeView?.isPictureInPictureActive() == true
             if (!inPiP) {
                 activeView?.pause()
+            } else {
+                activeView?.dispatchPictureInPictureState(true)
             }
         }
 

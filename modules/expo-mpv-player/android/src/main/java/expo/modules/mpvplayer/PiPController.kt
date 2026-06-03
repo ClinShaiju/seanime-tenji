@@ -174,10 +174,8 @@ class PiPController(private val context: Context, private val appContext: AppCon
         val viewWidth = view?.width ?: 0
         val viewHeight = view?.height ?: 0
 
-        // Display aspect ratio from view (Findroid approach)
         val displayAspectRatio = Rational(viewWidth.coerceAtLeast(1), viewHeight.coerceAtLeast(1))
 
-        // Video aspect ratio with 2.39:1 clamping (Findroid approach)
         val aspectRatio = if (videoWidth > 0 && videoHeight > 0) {
             Rational(
                 videoWidth.coerceAtMost((videoHeight * 2.39f).toInt()),
@@ -187,25 +185,25 @@ class PiPController(private val context: Context, private val appContext: AppCon
             Rational(DEFAULT_ASPECT_WIDTH, DEFAULT_ASPECT_HEIGHT)
         }
 
-        // Source rect hint (Findroid approach)
-        val sourceRectHint = if (viewWidth > 0 && viewHeight > 0 && videoWidth > 0 && videoHeight > 0) {
+        val sourceRectHint = if (view != null && viewWidth > 0 && viewHeight > 0) {
+            val globalRect = Rect()
+            view.getGlobalVisibleRect(globalRect)
+
             if (displayAspectRatio < aspectRatio) {
-                // Letterboxing — black bars top/bottom
                 val space = ((viewHeight - (viewWidth.toFloat() / aspectRatio.toFloat())) / 2).toInt()
                 Rect(
-                    0,
-                    space,
-                    viewWidth,
-                    (viewWidth.toFloat() / aspectRatio.toFloat()).toInt() + space,
+                    globalRect.left,
+                    globalRect.top + space,
+                    globalRect.right,
+                    globalRect.top + space + (viewWidth.toFloat() / aspectRatio.toFloat()).toInt(),
                 )
             } else {
-                // Pillarboxing — black bars left/right
                 val space = ((viewWidth - (viewHeight.toFloat() * aspectRatio.toFloat())) / 2).toInt()
                 Rect(
-                    space,
-                    0,
-                    (viewHeight.toFloat() * aspectRatio.toFloat()).toInt() + space,
-                    viewHeight,
+                    globalRect.left + space,
+                    globalRect.top,
+                    globalRect.left + space + (viewHeight.toFloat() * aspectRatio.toFloat()).toInt(),
+                    globalRect.bottom,
                 )
             }
         } else {
@@ -217,7 +215,6 @@ class PiPController(private val context: Context, private val appContext: AppCon
 
         sourceRectHint?.let { builder.setSourceRectHint(it) }
 
-        // On Android 12+, enable auto-enter (Findroid approach)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(true)
         }

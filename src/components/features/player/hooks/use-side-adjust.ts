@@ -1,4 +1,5 @@
 import * as Brightness from "expo-brightness"
+import * as NavigationBar from "expo-navigation-bar"
 import React from "react"
 import { Platform } from "react-native"
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated"
@@ -95,7 +96,13 @@ export function useSideAdjust() {
         if (nextValue === null) return
 
         lastBrightnessWriteAtRef.current = Date.now()
-        void Brightness.setBrightnessAsync(nextValue).catch(() => undefined)
+        void Brightness.setBrightnessAsync(nextValue)
+            .then(() => {
+                if (Platform.OS === "android") {
+                    void NavigationBar.setVisibilityAsync("hidden").catch(() => undefined)
+                }
+            })
+            .catch(() => undefined)
     }, [])
 
     const queueBrightnessWrite = React.useCallback((value: number) => {
@@ -153,6 +160,13 @@ export function useSideAdjust() {
     const scheduleSideAdjustHide = React.useCallback(() => {
         clearSideAdjustHideTimer()
         flushPendingBrightness()
+
+        if (Platform.OS === "android") {
+            setTimeout(() => {
+                void NavigationBar.setVisibilityAsync("hidden").catch(() => undefined)
+            }, 100)
+        }
+
         sideAdjustHideTimerRef.current = setTimeout(() => {
             setSideAdjustFeedbackKind(null)
             sideAdjustHideTimerRef.current = null

@@ -98,12 +98,20 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         Log.d(TAG, "surface changed: ${width}x${height}")
         renderer?.updateSurfaceSize(width, height)
         pipController?.refreshPiPParams()
+        dispatchPictureInPictureState(isPictureInPictureActive())
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         Log.d(TAG, "surface destroyed")
         surfaceReady = false
         renderer?.detachSurface()
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        super.onLayout(changed, l, t, r, b)
+        if (changed) {
+            dispatchPictureInPictureState(isPictureInPictureActive())
+        }
     }
 
     // -------------------------------------------------------------------
