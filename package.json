@@ -1,7 +1,7 @@
 {
   "name": "seanime-tenji",
   "main": "index.js",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "scripts": {
     "dev:start": "expo start -c",
     "dev:start:ios": "expo start -c --ios",
@@ -16,9 +16,9 @@
     "internal:dev:android:open": "bash ./scripts/android-dev.sh open",
     "internal:release:android": "bash ./scripts/android-build.sh",
     "internal:release:ios": "bash ./scripts/ios-build.sh",
-    "internal:release:android:github": "npm run internal:release:publish -- --platform android",
-    "internal:release:ios:github": "npm run internal:release:publish -- --platform ios",
-    "internal:release:github": "npm run internal:release:publish -- --platform all",
+    "internal:release:android:github": "bash ./scripts/publish-github-release.sh --platform android",
+    "internal:release:ios:github": "bash ./scripts/publish-github-release.sh --platform ios",
+    "internal:release:github": "bash ./scripts/publish-github-release.sh --platform all",
     "internal:ota:publish": "node ./tools/publish-ota-update.mjs",
     "internal:bump-version": "node ./tools/bump-version.mjs",
     "fix": "npx expo install --fix",

@@ -6,7 +6,7 @@ import React from "react"
 import { Platform, Text, View, type ViewStyle } from "react-native"
 import { GestureDetector, Pressable } from "react-native-gesture-handler"
 import type { ComposedGesture, GestureType } from "react-native-gesture-handler"
-import Animated, { type AnimatedStyle, FadeIn, FadeOut, type SharedValue, useAnimatedStyle } from "react-native-reanimated"
+import Animated, { type AnimatedStyle, FadeIn, FadeOut, type SharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { formatTime } from "./helpers"
 import type { PlayerPanel } from "./types"
 
@@ -77,6 +77,7 @@ function SegmentFill({
 }
 
 interface ControlsOverlayProps {
+    visible: boolean
     source: MobilePlaybackSource | null
     state: PlayerStateType
     insets: { top: number; bottom: number; left: number; right: number }
@@ -115,7 +116,7 @@ function isSkippableChapter(title?: string) {
 
 export function ControlsOverlay(props: ControlsOverlayProps) {
     const {
-        source, state, insets, zoomMode, panel,
+        visible, source, state, insets, zoomMode, panel,
         seekBarGesture, onSeekBarLayout,
         seekBarTrackStyle, seekBarFillStyle, seekBarThumbStyle, seekBarGlowStyle,
         chapterMarkers, progressRatio,
@@ -125,6 +126,10 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
         chapters, seekBarProgress,
         onLockScreen, onSeekRelative, buttonSeekSec,
     } = props
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: withTiming(visible ? 1 : 0, { duration: 150 }),
+    }))
 
     const extendHudPastHorizontalSafeArea = Platform.OS === "ios" && zoomMode === "fill"
     const padL = extendHudPastHorizontalSafeArea ? 24 : insets.left + 16
@@ -168,7 +173,10 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
     }, [chapters, state.duration])
 
     return (
-        <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)} pointerEvents="box-none" className="absolute inset-0">
+        <Animated.View
+            style={[{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }, animatedStyle]}
+            pointerEvents={visible ? "box-none" : "none"}
+        >
             <View pointerEvents="none" className="absolute inset-0 bg-black/45" />
 
             <View pointerEvents="box-none" className="absolute left-0 right-0 top-0">

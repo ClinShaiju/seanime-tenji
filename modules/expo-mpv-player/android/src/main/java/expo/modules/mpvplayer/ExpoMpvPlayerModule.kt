@@ -61,6 +61,24 @@ class ExpoMpvPlayerModule : Module() {
         Function("lockLandscape") { }
         Function("unlockOrientation") { }
 
+        Function("setWindowBrightness") { brightness: Double ->
+            val activity = appContext.currentActivity ?: return@Function
+            activity.runOnUiThread {
+                try {
+                    val window = activity.window
+                    val lp = window.attributes
+                    lp.screenBrightness = brightness.toFloat()
+                    window.attributes = lp
+                    val decorView = window.decorView
+                    val controller = androidx.core.view.WindowInsetsControllerCompat(window, decorView)
+                    controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                    controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error setting window brightness", e)
+                }
+            }
+        }
+
         View(MpvPlayerView::class) {
             Prop("source") { view: MpvPlayerView, source: Map<String, Any?>? ->
                 if (source == null) return@Prop

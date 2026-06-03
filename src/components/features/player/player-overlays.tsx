@@ -157,6 +157,7 @@ export function CenterTapFeedback({ feedback }: { feedback: "play" | "pause" }) 
 export function SideAdjustHUD({
     kind,
     progress,
+    initialProgress,
     insets,
     screenHeight,
     padL,
@@ -165,30 +166,33 @@ export function SideAdjustHUD({
 }: {
     kind: "brightness" | "volume"
     progress: SharedValue<number>
+    initialProgress: number
     insets: { top: number }
     screenHeight: number
     padL: number
     padR: number
     sideAdjustFillStyle: AnimatedStyle<ViewStyle>
 }) {
-    const [displayPercent, setDisplayPercent] = React.useState(() => Math.round(progress.value * 100))
+    const [displayPercent, setDisplayPercent] = React.useState(Math.round(initialProgress * 100))
 
     const updateDisplayPercent = React.useCallback((value: number) => {
         setDisplayPercent(current => current === value ? current : value)
     }, [])
 
     React.useEffect(() => {
-        setDisplayPercent(Math.round(progress.value * 100))
-    }, [kind, progress])
+        setDisplayPercent(Math.round(initialProgress * 100))
+    }, [kind, initialProgress])
 
-    useAnimatedReaction(
-        () => Math.round(progress.value * 100),
-        (nextValue, previousValue) => {
-            if (nextValue !== previousValue) {
-                runOnJS(updateDisplayPercent)(nextValue)
-            }
-        },
-    )
+    useAnimatedReaction(() => {
+        "worklet"
+        const isWorklet = (globalThis as typeof globalThis & { _WORKLET?: boolean })._WORKLET
+        return isWorklet ? Math.round(progress.value * 100) : 0
+    }, (nextValue, previousValue) => {
+        "worklet"
+        if (nextValue !== previousValue) {
+            runOnJS(updateDisplayPercent)(nextValue)
+        }
+    }, [progress, updateDisplayPercent])
 
     return (
         <Animated.View

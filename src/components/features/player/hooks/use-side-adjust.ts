@@ -1,4 +1,5 @@
 import * as Brightness from "expo-brightness"
+import { MpvPlayerModule } from "expo-mpv-player"
 import * as NavigationBar from "expo-navigation-bar"
 import React from "react"
 import { Platform } from "react-native"
@@ -96,13 +97,11 @@ export function useSideAdjust() {
         if (nextValue === null) return
 
         lastBrightnessWriteAtRef.current = Date.now()
-        void Brightness.setBrightnessAsync(nextValue)
-            .then(() => {
-                if (Platform.OS === "android") {
-                    void NavigationBar.setVisibilityAsync("hidden").catch(() => undefined)
-                }
-            })
-            .catch(() => undefined)
+        if (Platform.OS === "android") {
+            MpvPlayerModule.setWindowBrightness(nextValue)
+        } else {
+            void Brightness.setBrightnessAsync(nextValue).catch(() => undefined)
+        }
     }, [])
 
     const queueBrightnessWrite = React.useCallback((value: number) => {

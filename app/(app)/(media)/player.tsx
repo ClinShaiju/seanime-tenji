@@ -41,7 +41,7 @@ import { useRouter } from "expo-router"
 import { useAtom, useAtomValue } from "jotai/react"
 import { SkipForward } from "lucide-react-native"
 import React from "react"
-import { ActivityIndicator, Platform, StatusBar, Text, useWindowDimensions, View } from "react-native"
+import { ActivityIndicator, Dimensions, Platform, StatusBar, Text, useWindowDimensions, View } from "react-native"
 import { Gesture, GestureDetector, GestureHandlerRootView, Pressable } from "react-native-gesture-handler"
 import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -76,8 +76,33 @@ function PlayerScreenInner() {
     const IOS_SUBTITLE_CROP_ADJUSTMENT_FACTOR = 0.7
 
     const { back, canGoBack, replace } = useRouter()
-    const insets = useSafeAreaInsets()
-    const { width: screenWidth, height: screenHeight } = useWindowDimensions()
+    const rawInsets = useSafeAreaInsets()
+    const insets = React.useMemo(() => {
+        if (Platform.OS === "android") {
+            return {
+                top: 0,
+                bottom: 0,
+                left: rawInsets.left,
+                right: rawInsets.right,
+            }
+        }
+        return rawInsets
+    }, [rawInsets])
+    const { width: windowWidth, height: windowHeight } = useWindowDimensions()
+    const { screenWidth, screenHeight } = React.useMemo(() => {
+        if (Platform.OS === "android") {
+            const screen = Dimensions.get("screen")
+            return {
+                screenWidth: Math.max(screen.width, screen.height),
+                screenHeight: Math.min(screen.width, screen.height),
+            }
+        }
+        return {
+            screenWidth: windowWidth,
+            screenHeight: windowHeight,
+        }
+    }, [windowWidth, windowHeight])
+
     const cleanupSession = useCleanupPlaybackSession()
     const serverUrl = useServerUrl()
     const isServerConnected = useIsServerConnected()
@@ -849,7 +874,16 @@ function PlayerScreenInner() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <View className="flex-1 bg-black">
+            <View
+                className="bg-black"
+                style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: Platform.OS === "android" ? screenWidth : "100%",
+                    height: Platform.OS === "android" ? screenHeight : "100%",
+                }}
+            >
                 <StatusBar hidden />
 
 
@@ -884,8 +918,9 @@ function PlayerScreenInner() {
                 </GestureDetector>
 
 
-                {controls.controlsVisible && !controls.controlsLocked && !isPiPActive && (
+                {!isPiPActive && (
                     <ControlsOverlay
+                        visible={controls.controlsVisible && !controls.controlsLocked}
                         source={source}
                         state={state}
                         insets={insets}
@@ -1011,6 +1046,11 @@ function PlayerScreenInner() {
                     <SideAdjustHUD
                         kind={sideAdjust.sideAdjustFeedbackKind}
                         progress={sideAdjust.sideAdjustProgress}
+                        initialProgress={
+                            sideAdjust.sideAdjustFeedbackKind === "brightness"
+                                ? sideAdjust.brightnessLevelRef.current
+                                : sideAdjust.volumeLevelRef.current
+                        }
                         insets={insets}
                         screenHeight={screenHeight}
                         padL={padL}
