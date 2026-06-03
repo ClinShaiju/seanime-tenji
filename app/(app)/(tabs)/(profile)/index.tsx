@@ -1,4 +1,6 @@
+import { useScanLocalFiles } from "@/api/hooks/scan.hooks"
 import { useCurrentUser } from "@/atoms/server.atoms"
+import { websocketAtom } from "@/atoms/websocket.atoms"
 import { ExternalPlayerPickerSheet } from "@/components/features/player/external-player-picker-sheet"
 import { ProfileMenuItem, ProfileMenuSection, ProfileMenuToggle, RowDivider } from "@/components/features/profile/profile-menu"
 import { SafeView } from "@/components/layout/layout-view"
@@ -16,7 +18,7 @@ import {
     useFailedMangaDownloads,
     useMangaDownloadDiskUsage,
 } from "@/lib/downloads"
-import { useManualOfflineMode, useServerConnectionState } from "@/lib/offline"
+import { useIsServerConnected, useManualOfflineMode, useServerConnectionState } from "@/lib/offline"
 import { checkForOtaUpdateManually, getOtaVersionInfo } from "@/lib/ota/updates"
 import { type ActiveStreamSession, activeStreamSessionAtom } from "@/lib/player"
 import { getPlatformExternalPlayers } from "@/lib/player/external-players"
@@ -37,6 +39,55 @@ export default function ProfileScreen() {
     const connectionState = useServerConnectionState()
     const [manualOffline, setManualOffline] = useManualOfflineMode()
     const activeStream = useAtomValue(activeStreamSessionAtom)
+    const isServerConnected = useIsServerConnected()
+
+    const socket = useAtomValue(websocketAtom)
+    const [scanProgress, setScanProgress] = React.useState<number | null>(null)
+    const [scanStatus, setScanStatus] = React.useState<string | null>(null)
+
+    React.useEffect(() => {
+        if (!socket) return
+
+        const handleMessage = (event: WebSocketMessageEvent) => {
+            try {
+                const data = JSON.parse(event.data) as { type?: string; payload?: any }
+                if (data?.type === "scan-progress") {
+                    setScanProgress(data.payload as number)
+                } else if (data?.type === "scan-status") {
+                    setScanStatus(data.payload as string)
+                }
+            }
+            catch (e) {
+                // ignore
+            }
+        }
+
+        socket.addEventListener("message", handleMessage)
+        return () => socket.removeEventListener("message", handleMessage)
+    }, [socket])
+
+    React.useEffect(() => {
+        if (scanProgress === 100) {
+            const timer = setTimeout(() => {
+                setScanProgress(null)
+                setScanStatus(null)
+            }, 3000)
+            return () => clearTimeout(timer)
+        }
+    }, [scanProgress])
+
+    const { mutate: scanLibrary, isPending: isScanPending } = useScanLocalFiles()
+    const isScanning = (scanProgress !== null && scanProgress < 100) || isScanPending
+
+    const handleRescan = React.useCallback(() => {
+        if (isScanning) return
+        scanLibrary({
+            enhanced: false,
+            enhanceWithOfflineDatabase: false,
+            skipLockedFiles: true,
+            skipIgnoredFiles: true,
+        })
+    }, [isScanning, scanLibrary])
 
     useIOSScrollRefreshRateWorkaround()
 
@@ -266,6 +317,26 @@ export default function ProfileScreen() {
                             onPress={() => router.push("/(app)/(tabs)/(profile)/download-settings" as never)}
                         />
                     </ProfileMenuSection>
+
+                    {/* {isServerConnected && (
+                     <ProfileMenuSection title="Server Downloads">
+                     <ProfileMenuItem
+                     icon="cloud-download-outline"
+                     label="Server Download Queue"
+                     detail="Monitor active torrent/debrid client downloads on the server"
+                     onPress={() => router.push("/(app)/(tabs)/(profile)/server-downloads" as never)}
+                     />
+                     <RowDivider />
+                     <ProfileMenuItem
+                     icon={isScanning ? "refresh" : "refresh-outline"}
+                     label={isScanning ? (scanStatus || "Scanning library...") : "Rescan Library"}
+                     detail={isScanning ? `Progress: ${scanProgress ?? 0}%` : "Force local filesystem scan"}
+                     accessory={isScanning ? <ActivityIndicator size="small" color="rgba(255,255,255,0.45)" /> : undefined}
+                     onPress={handleRescan}
+                     hideChevron={isScanning}
+                     />
+                     </ProfileMenuSection>
+                     )} */}
 
                     <ProfileMenuSection title="App">
                         <ProfileMenuToggle

@@ -64,6 +64,11 @@ type TorrentStreamPickerSheetProps = {
     torrentMetadataByInfoHash?: Record<string, Habari_Metadata | undefined>
     usePreviousBatch: boolean
     resolution: TorrentResolution
+    mode?: "stream" | "download"
+    onDownloadTorrent?: (torrent: HibikeTorrent_AnimeTorrent, smartSelect: boolean) => void
+    onDownloadFile?: (torrent: HibikeTorrent_AnimeTorrent, fileId: string | null) => void
+    isDownloading?: boolean
+    hasTorrentClient?: boolean
 }
 
 export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
@@ -110,6 +115,11 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
         torrentMetadataByInfoHash,
         usePreviousBatch,
         resolution,
+        mode = "stream",
+        onDownloadTorrent,
+        onDownloadFile,
+        isDownloading = false,
+        hasTorrentClient = false,
     } = props
 
     const primaryLabel = React.useMemo(() => {
@@ -121,30 +131,113 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
 
     const snapPoints = React.useMemo(() => ["72%", "92%"], [])
 
-    const footer = React.useMemo(() => (
-        <SheetFooter>
-            <SheetFooterButton
-                variant="cancel"
-                onPress={() => onOpenChange(false)}
-                disabled={isStarting}
-            >
-                <Text className="font-medium text-foreground/70">Close</Text>
-            </SheetFooterButton>
-            <SheetFooterButton
-                variant="primary"
-                onPress={pickerStage === "files" ? onConfirmFileSelection : onConfirmTorrentSelection}
-                disabled={
-                    isStarting ||
-                    !selectedEpisode ||
-                    (pickerStage === "files" && selectedFileId === null)
-                }
-            >
-                <Text className="font-semibold text-primary-foreground">
-                    {isStarting ? "Starting..." : primaryLabel}
-                </Text>
-            </SheetFooterButton>
-        </SheetFooter>
-    ), [isStarting, onConfirmFileSelection, onConfirmTorrentSelection, onOpenChange, pickerStage, primaryLabel, selectedEpisode, selectedFileId])
+    const footer = React.useMemo(() => {
+        if (mode === "download") {
+            const hasDebrid = streamMode === "debrid"
+            const label = hasDebrid ? "Download with Debrid" : "Download to Server"
+            const showPrimary = selectedTorrent && (pickerStage === "torrents" ? !selectedTorrent.isBatch : selectedFileId !== null)
+
+            return (
+                <SheetFooter className="flex-col gap-2">
+                    {pickerStage === "torrents" && selectedTorrent?.isBatch && !hasDebrid && (
+                        <View className="flex-row gap-3 w-full">
+                            <SheetFooterButton
+                                variant="cancel"
+                                onPress={() => onDownloadTorrent?.(selectedTorrent, true)}
+                                disabled={isDownloading}
+                                className="bg-indigo-500/10 border border-indigo-500/25 active:bg-indigo-500/20"
+                            >
+                                <Text className="font-semibold text-indigo-400">Download Missing</Text>
+                            </SheetFooterButton>
+                            <SheetFooterButton
+                                variant="cancel"
+                                onPress={() => onDownloadTorrent?.(selectedTorrent, false)}
+                                disabled={isDownloading}
+                                className="bg-indigo-500/10 border border-indigo-500/25 active:bg-indigo-500/20"
+                            >
+                                <Text className="font-semibold text-indigo-400">Download Full</Text>
+                            </SheetFooterButton>
+                        </View>
+                    )}
+                    <View className="flex-row gap-3 w-full">
+                        <SheetFooterButton
+                            variant="cancel"
+                            onPress={() => onOpenChange(false)}
+                            disabled={isDownloading}
+                        >
+                            <Text className="font-medium text-foreground/70">Close</Text>
+                        </SheetFooterButton>
+                        {pickerStage === "torrents" && selectedTorrent?.isBatch ? (
+                            <SheetFooterButton
+                                variant="primary"
+                                onPress={onConfirmTorrentSelection}
+                                disabled={isDownloading}
+                            >
+                                <Text className="font-semibold text-primary-foreground">Choose File</Text>
+                            </SheetFooterButton>
+                        ) : (
+                            <SheetFooterButton
+                                variant="primary"
+                                onPress={() => {
+                                    if (pickerStage === "files") {
+                                        onDownloadFile?.(selectedTorrent!, selectedFileId)
+                                    } else {
+                                        onDownloadTorrent?.(selectedTorrent!, false)
+                                    }
+                                }}
+                                disabled={isDownloading || !showPrimary}
+                                className={!showPrimary ? "opacity-40" : undefined}
+                            >
+                                <Text className="font-semibold text-primary-foreground">
+                                    {isDownloading ? "Downloading..." : label}
+                                </Text>
+                            </SheetFooterButton>
+                        )}
+                    </View>
+                </SheetFooter>
+            )
+        }
+
+        return (
+            <SheetFooter>
+                <SheetFooterButton
+                    variant="cancel"
+                    onPress={() => onOpenChange(false)}
+                    disabled={isStarting}
+                >
+                    <Text className="font-medium text-foreground/70">Close</Text>
+                </SheetFooterButton>
+                <SheetFooterButton
+                    variant="primary"
+                    onPress={pickerStage === "files" ? onConfirmFileSelection : onConfirmTorrentSelection}
+                    disabled={
+                        isStarting ||
+                        !selectedEpisode ||
+                        (pickerStage === "files" && selectedFileId === null)
+                    }
+                >
+                    <Text className="font-semibold text-primary-foreground">
+                        {isStarting ? "Starting..." : primaryLabel}
+                    </Text>
+                </SheetFooterButton>
+            </SheetFooter>
+        )
+    }, [
+        mode,
+        streamMode,
+        pickerStage,
+        selectedTorrent,
+        selectedFileId,
+        isDownloading,
+        onDownloadTorrent,
+        onDownloadFile,
+        onOpenChange,
+        onConfirmTorrentSelection,
+        isStarting,
+        onConfirmFileSelection,
+        selectedEpisode,
+        primaryLabel,
+    ])
 
     return (
         <SeaBottomSheet

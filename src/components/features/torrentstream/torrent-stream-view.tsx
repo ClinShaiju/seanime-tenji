@@ -3,8 +3,8 @@ import { useServerStatus } from "@/atoms/server.atoms"
 import { EpisodeCardList } from "@/components/features/anime/episode-card-list"
 import { AnimeEpisodeSection } from "@/components/features/media/anime-entry-library-view"
 import { LabeledSwitch } from "@/components/shared/labeled-switch"
+import { SegmentedControl } from "@/components/shared/segmented-control"
 import { Surface } from "@/components/shared/surface"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getSequentialContinueWatchingSpoilerActive } from "@/lib/anime-spoilers"
 import * as React from "react"
 import { Text, View } from "react-native"
@@ -69,18 +69,14 @@ export function TorrentStreamView({
             <View className="px-4 mb-5">
                 <Surface variant="muted" className="p-3.5 gap-3.5">
                     {availableModes.length > 1 && (
-                        <View className="gap-2">
-                            <Tabs value={streamMode} onValueChange={value => onSelectStreamMode(value as StreamMode)}>
-                                <TabsList className="flex-row w-full rounded-full bg-white/5 native:px-1">
-                                    <TabsTrigger value="torrent" className="flex-1 rounded-full">
-                                        <Text className="text-white">Torrent</Text>
-                                    </TabsTrigger>
-                                    <TabsTrigger value="debrid" className="flex-1 rounded-full">
-                                        <Text className="text-white">Debrid</Text>
-                                    </TabsTrigger>
-                                </TabsList>
-                            </Tabs>
-                        </View>
+                        <SegmentedControl
+                            options={[
+                                { value: "torrent", label: "Torrent" },
+                                { value: "debrid", label: "Debrid" },
+                            ]}
+                            value={streamMode}
+                            onChange={onSelectStreamMode}
+                        />
                     )}
 
                     {hasMappingError && (

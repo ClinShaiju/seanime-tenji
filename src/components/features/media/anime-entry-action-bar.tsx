@@ -1,5 +1,6 @@
 import { Anime_Entry, Anime_Episode } from "@/api/generated/types"
 import { DownloadEpisodesModal } from "@/components/features/media/download-episodes-modal"
+import { ServerDownloadModal } from "@/components/features/media/server-download-modal"
 import { Button } from "@/components/ui/button"
 import { useCompletedEpisodesForMedia } from "@/lib/downloads"
 import { useIsServerConnected } from "@/lib/offline"
@@ -19,6 +20,7 @@ export function AnimeEntryActionBar({
     onContinueWatching,
 }: AnimeEntryActionBarProps) {
     const [downloadModalOpen, setDownloadModalOpen] = useState(false)
+    const [serverDownloadModalOpen, setServerDownloadModalOpen] = useState(false)
     const downloadedEpisodes = useCompletedEpisodesForMedia(entry.mediaId)
     const isConnected = useIsServerConnected()
 
@@ -67,6 +69,22 @@ export function AnimeEntryActionBar({
                         </View>
                     </Button>
                 )}
+
+                {/* {isConnected && (
+                 <Button
+                 variant="secondary"
+                 className="rounded-xl h-11 px-3.5"
+                 style={!nextEpisode && !hasDownloadableEpisodes ? { flex: 1 } : undefined}
+                 onPress={() => setServerDownloadModalOpen(true)}
+                 >
+                 <View className="flex-row items-center gap-2">
+                 <Ionicons name="cloud-download-outline" size={17} color="white" />
+                 <Text className="text-sm font-medium text-secondary-foreground">
+                 Server
+                 </Text>
+                 </View>
+                 </Button>
+                 )} */}
             </View>
 
             <DownloadEpisodesModal
@@ -74,6 +92,12 @@ export function AnimeEntryActionBar({
                 episodes={allEpisodes}
                 open={downloadModalOpen}
                 onOpenChange={setDownloadModalOpen}
+            />
+
+            <ServerDownloadModal
+                entry={entry}
+                open={serverDownloadModalOpen}
+                onOpenChange={setServerDownloadModalOpen}
             />
         </>
     )
