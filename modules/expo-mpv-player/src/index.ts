@@ -23,6 +23,7 @@ export type {
     OnProgressEventPayload,
     OnPlaybackStateChangePayload,
     OnErrorEventPayload,
+    OnPictureInPictureChangeEventPayload,
     SubtitleTrack,
     AudioTrack,
     TechnicalInfo,

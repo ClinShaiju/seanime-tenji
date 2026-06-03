@@ -159,6 +159,10 @@ export type MpvPlayerViewRef = {
 // View props
 ///////////////////////////////////////////////////////////////////////////////
 
+export type OnPictureInPictureChangeEventPayload = {
+    isActive: boolean
+}
+
 type NativeEvent<T> = { nativeEvent: T }
 
 export type MpvPlayerViewProps = ViewProps & {
@@ -169,4 +173,5 @@ export type MpvPlayerViewProps = ViewProps & {
     onPlaybackStateChange?: (event: NativeEvent<OnPlaybackStateChangePayload>) => void
     onError?: (event: NativeEvent<OnErrorEventPayload>) => void
     onTracksReady?: (event: NativeEvent<Record<string, never>>) => void
+    onPictureInPictureChange?: (event: NativeEvent<OnPictureInPictureChangeEventPayload>) => void
 }

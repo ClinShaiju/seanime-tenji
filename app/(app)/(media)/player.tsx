@@ -89,19 +89,6 @@ function PlayerScreenInner() {
         return rawInsets
     }, [rawInsets])
     const { width: windowWidth, height: windowHeight } = useWindowDimensions()
-    const { screenWidth, screenHeight } = React.useMemo(() => {
-        if (Platform.OS === "android") {
-            const screen = Dimensions.get("screen")
-            return {
-                screenWidth: Math.max(screen.width, screen.height),
-                screenHeight: Math.min(screen.width, screen.height),
-            }
-        }
-        return {
-            screenWidth: windowWidth,
-            screenHeight: windowHeight,
-        }
-    }, [windowWidth, windowHeight])
 
     const cleanupSession = useCleanupPlaybackSession()
     const serverUrl = useServerUrl()
@@ -145,6 +132,26 @@ function PlayerScreenInner() {
     const playerSetVideoZoom = player.setVideoZoom
     const playerSetSubtitlePosition = player.setSubtitlePosition
     const playerSetSubtitleMarginY = player.setSubtitleMarginY
+
+    const { screenWidth, screenHeight } = React.useMemo(() => {
+        if (state.isPiPActive) {
+            return {
+                screenWidth: windowWidth,
+                screenHeight: windowHeight,
+            }
+        }
+        if (Platform.OS === "android") {
+            const screen = Dimensions.get("screen")
+            return {
+                screenWidth: Math.max(screen.width, screen.height),
+                screenHeight: Math.min(screen.width, screen.height),
+            }
+        }
+        return {
+            screenWidth: windowWidth,
+            screenHeight: windowHeight,
+        }
+    }, [windowWidth, windowHeight, state.isPiPActive])
 
     useContinuitySync(player.source, state)
 
@@ -875,19 +882,15 @@ function PlayerScreenInner() {
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
             <View
-                className="bg-black"
+                className="bg-black flex-1 w-full h-full"
                 style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: Platform.OS === "android" ? screenWidth : "100%",
-                    height: Platform.OS === "android" ? screenHeight : "100%",
+                    backgroundColor: "black",
                 }}
             >
                 <StatusBar hidden />
 
 
-                <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
+                <View style={{ flex: 1, width: "100%", height: "100%", position: "relative", justifyContent: "center" }}>
                     <MpvPlayerView
                         ref={player.viewRef}
                         source={player.videoSource}
@@ -895,9 +898,10 @@ function PlayerScreenInner() {
                         onLoad={player.onNativeLoad}
                         onProgress={player.onNativeProgress}
                         onPlaybackStateChange={player.onNativePlaybackStateChange}
+                        onPictureInPictureChange={player.onNativePictureInPictureChange}
                         onError={player.onNativeError}
                         onTracksReady={player.onNativeTracksReady}
-                        style={{ flex: 1 }}
+                        style={{ width: "100%", height: "100%" }}
                     />
                 </View>
 

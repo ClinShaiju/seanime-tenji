@@ -70,6 +70,7 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver {
     private val progressIntervalMs: Long = 1000
 
     private var initialized = false
+    private var surface: Surface? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // -------------------------------------------------------------------
@@ -159,27 +160,50 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver {
     // -------------------------------------------------------------------
 
     fun attachSurface(surface: Surface) {
-        if (!initialized) return
-        MPVLib.attachSurface(surface)
-        // re-enable video output after surface is available
-        MPVLib.setPropertyString("vo", "gpu")
-        MPVLib.setPropertyString("force-window", "yes")
+        this.surface = surface
+        Log.i(TAG, "[PiP] attachSurface — initialized=$initialized, surface=${surface.hashCode()}")
+        if (initialized) {
+            MPVLib.attachSurface(surface)
+            MPVLib.setPropertyString("force-window", "yes")
+            val activeVo = try {
+                MPVLib.getPropertyString("vo")
+            } catch (e: Exception) {
+                null
+            }
+            Log.i(TAG, "[PiP] attachSurface — attached, activeVo=$activeVo")
+        }
     }
 
     fun detachSurface() {
-        if (!initialized) return
-        // disable video output before losing the surface
-        MPVLib.setPropertyString("vo", "null")
-        MPVLib.setPropertyString("force-window", "no")
-        MPVLib.detachSurface()
+        this.surface = null
+        Log.i(TAG, "[PiP] detachSurface — initialized=$initialized")
+        if (initialized) {
+            MPVLib.detachSurface()
+            val activeVo = try {
+                MPVLib.getPropertyString("vo")
+            } catch (e: Exception) {
+                null
+            }
+            Log.i(TAG, "[PiP] detachSurface — detached, activeVo=$activeVo (should still be gpu)")
+        }
     }
 
     fun updateSurfaceSize(width: Int, height: Int) {
-        if (!initialized || width <= 0 || height <= 0) return
-        try {
-            MPVLib.setPropertyString("android-surface-size", "${width}x${height}")
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not set android-surface-size", e)
+        if (initialized) {
+            MPVLib.setPropertyString("android-surface-size", "${width}x$height")
+            Log.i(TAG, "[PiP] updateSurfaceSize — ${width}x${height}")
+        } else {
+            Log.w(TAG, "[PiP] updateSurfaceSize — called but renderer not running")
+        }
+    }
+
+    fun forceRedraw() {
+        if (!initialized) return
+        val pos = cachedPosition
+        Log.i(TAG, "[PiP] forceRedraw — stepping frame then seeking to $pos")
+        MPVLib.command(arrayOf("frame-step"))
+        if (pos > 0) {
+            MPVLib.command(arrayOf("seek", pos.toString(), "absolute"))
         }
     }
 

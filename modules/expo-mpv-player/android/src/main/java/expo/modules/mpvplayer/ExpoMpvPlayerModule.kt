@@ -28,8 +28,6 @@ class ExpoMpvPlayerModule : Module() {
     private var hiddenDevMenuBindingView: View? = null
     private var shouldRestoreDevMenuFab = false
     private var isActivityInForeground = true
-    private var lastKnownPiPActive = false
-    private var pipSyncJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // hold a weak reference to the active view for background/foreground PiP logic
@@ -43,8 +41,6 @@ class ExpoMpvPlayerModule : Module() {
             val inPiP = activeView?.isPictureInPictureActive() == true
             if (!inPiP) {
                 activeView?.pause()
-            } else {
-                activeView?.dispatchPictureInPictureState(true)
             }
         }
 
@@ -112,7 +108,6 @@ class ExpoMpvPlayerModule : Module() {
 
             OnViewDidUpdateProps { view ->
                 activeView = view
-                startPiPSyncIfNeeded()
             }
 
             // playback
@@ -167,46 +162,7 @@ class ExpoMpvPlayerModule : Module() {
             AsyncFunction("getTechnicalInfo") { view: MpvPlayerView -> view.getTechnicalInfo() }
 
             // events
-            Events("onLoad", "onPlaybackStateChange", "onProgress", "onError", "onTracksReady")
-        }
-    }
-
-    // -------------------------------------------------------------------
-    // PiP state sync (detects PiP exit transitions)
-    // -------------------------------------------------------------------
-
-    private fun startPiPSyncIfNeeded() {
-        if (pipSyncJob != null) return
-        pipSyncJob = CoroutineScope(Dispatchers.Default).launch {
-            while (isActive) {
-                try {
-                    syncPiPState()
-                } catch (e: Exception) {
-                    Log.w(TAG, "PiP sync error", e)
-                }
-                delay(500)
-            }
-        }
-    }
-
-    private fun syncPiPState() {
-        val view = activeView ?: return
-        val inPiP = view.isPictureInPictureActive()
-        if (inPiP != lastKnownPiPActive) {
-            lastKnownPiPActive = inPiP
-            mainHandler.post {
-                view.dispatchPictureInPictureState(inPiP)
-                if (!inPiP) {
-                    // exited PiP
-                    val activity = appContext.currentActivity
-                    if (activity != null) {
-                        restoreExpoDevMenuOverlay(activity)
-                    }
-                    if (!isActivityInForeground) {
-                        view.pause()
-                    }
-                }
-            }
+            Events("onLoad", "onPlaybackStateChange", "onProgress", "onError", "onTracksReady", "onPictureInPictureChange")
         }
     }
 

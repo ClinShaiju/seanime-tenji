@@ -7,6 +7,7 @@ import type {
     NowPlayingMetadata,
     OnErrorEventPayload,
     OnLoadEventPayload,
+    OnPictureInPictureChangeEventPayload,
     OnPlaybackStateChangePayload,
     OnProgressEventPayload,
     SubtitleHorizontalAlignment,
@@ -249,6 +250,11 @@ export function useMpvPlayer() {
     const onNativeError = React.useCallback((event: NativeEvent<OnErrorEventPayload>) => {
         log.warning("Native error:", event.nativeEvent.error)
         setState(s => ({ ...s, status: "error" }))
+    }, [])
+
+    const onNativePictureInPictureChange = React.useCallback((event: NativeEvent<OnPictureInPictureChangeEventPayload>) => {
+        const { isActive } = event.nativeEvent
+        setState(s => s.isPiPActive === isActive ? s : { ...s, isPiPActive: isActive })
     }, [])
 
     const onNativeTracksReady = React.useCallback(async () => {
@@ -512,6 +518,7 @@ export function useMpvPlayer() {
         onNativePlaybackStateChange,
         onNativeError,
         onNativeTracksReady,
+        onNativePictureInPictureChange,
 
         // existing interface
         source,

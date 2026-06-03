@@ -5,6 +5,8 @@ import type { MpvPlayerViewProps, MpvPlayerViewRef } from "./MpvPlayer.types"
 const NativeView: React.ComponentType<MpvPlayerViewProps & { ref?: React.Ref<any> }> =
     requireNativeViewManager<MpvPlayerViewProps>("ExpoMpvPlayer")
 
+const PIP_LOG = "[PiP] MpvPlayerView.tsx:"
+
 export const MpvPlayerView = React.forwardRef<MpvPlayerViewRef, MpvPlayerViewProps>(
     function MpvPlayerView(props, ref) {
         const nativeRef = React.useRef<any>(null)
@@ -22,10 +24,26 @@ export const MpvPlayerView = React.forwardRef<MpvPlayerViewRef, MpvPlayerViewPro
             getDuration: () => nativeRef.current?.getDuration() ?? Promise.resolve(0),
 
             // PiP
-            startPictureInPicture: () => nativeRef.current?.startPictureInPicture() ?? Promise.resolve(),
-            stopPictureInPicture: () => nativeRef.current?.stopPictureInPicture() ?? Promise.resolve(),
-            isPictureInPictureSupported: () => nativeRef.current?.isPictureInPictureSupported() ?? Promise.resolve(false),
-            isPictureInPictureActive: () => nativeRef.current?.isPictureInPictureActive() ?? Promise.resolve(false),
+            startPictureInPicture: async () => {
+                console.log(PIP_LOG, "startPictureInPicture -> native")
+                await nativeRef.current?.startPictureInPicture()
+                console.log(PIP_LOG, "startPictureInPicture <- native returned")
+            },
+            stopPictureInPicture: async () => {
+                console.log(PIP_LOG, "stopPictureInPicture -> native")
+                await nativeRef.current?.stopPictureInPicture()
+                console.log(PIP_LOG, "stopPictureInPicture <- native returned")
+            },
+            isPictureInPictureSupported: async () => {
+                const result = await nativeRef.current?.isPictureInPictureSupported()
+                console.log(PIP_LOG, "isPictureInPictureSupported =", result)
+                return result
+            },
+            isPictureInPictureActive: async () => {
+                const result = await nativeRef.current?.isPictureInPictureActive()
+                console.log(PIP_LOG, "isPictureInPictureActive =", result)
+                return result
+            },
 
             // subtitle controls
             getSubtitleTracks: () => nativeRef.current?.getSubtitleTracks() ?? Promise.resolve([]),
