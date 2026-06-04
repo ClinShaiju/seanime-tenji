@@ -101,4 +101,5 @@ tools/
 !.github/
 .github/*
 !.github/workflows/
+!.github/ISSUE_TEMPLATE/
 latest-version.txt
