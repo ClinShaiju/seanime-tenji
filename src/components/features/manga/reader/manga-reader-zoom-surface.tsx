@@ -4,6 +4,9 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler"
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 
 const ZOOM_THRESHOLD = 1.01
+const DOUBLE_TAP_SCALE = 2.5
+const DOUBLE_TAP_MAX_DELAY = 280
+const DOUBLE_TAP_POSITION_TOLERANCE = 48
 const ZOOM_TIMING_CONFIG = {
     duration: 180,
     easing: Easing.inOut(Easing.quad),
@@ -19,6 +22,22 @@ function getEffectiveAndroidTranslate(translate: number, focal: number, scale: n
     "worklet"
 
     return translate + focal * (1 - scale)
+}
+
+function isTapInsideExclusion(
+    y: number,
+    tapViewportHeight: number,
+    tapExclusionTop: number,
+    tapExclusionBottom: number,
+): boolean {
+    "worklet"
+
+    const insideTopExclusion = tapExclusionTop > 0 && y <= tapExclusionTop
+    const insideBottomExclusion = tapExclusionBottom > 0
+        && tapViewportHeight > 0
+        && y >= tapViewportHeight - tapExclusionBottom
+
+    return insideTopExclusion || insideBottomExclusion
 }
 
 type MangaReaderZoomSurfaceProps = {
@@ -62,9 +81,31 @@ export function MangaReaderZoomSurface({
     const isNativePinch = pinchEnabled && Platform.OS === "ios" && !disabled
     const isCustomPinch = pinchEnabled && Platform.OS !== "ios" && !disabled
     const hasScrollableContainer = Boolean(onScroll || scrollViewRef)
+    const hasTapHandler = Boolean(onTap)
     const nativeScrollRef = React.useRef<ScrollView | null>(null)
+    const nativeZoomScaleRef = React.useRef(1)
+    const nativeScrollMetricsRef = React.useRef({
+        offsetX: 0,
+        offsetY: 0,
+        viewportWidth: 0,
+        viewportHeight: 0,
+    })
     const zoomedRef = React.useRef(false)
+    const onTapRef = React.useRef(onTap)
+    const onZoomChangeRef = React.useRef(onZoomChange)
+    const pendingNativeTapRef = React.useRef<{
+        timeout: ReturnType<typeof setTimeout>
+        timestamp: number
+        x: number
+        y: number
+    } | null>(null)
+    onTapRef.current = onTap
+    onZoomChangeRef.current = onZoomChange
     const [androidZoomed, setAndroidZoomed] = React.useState(false)
+
+    const tapViewportHeightValue = useSharedValue(tapViewportHeight)
+    const tapExclusionTopValue = useSharedValue(tapExclusionTop)
+    const tapExclusionBottomValue = useSharedValue(tapExclusionBottom)
 
     const androidScale = useSharedValue(1)
     const androidInitialFocalX = useSharedValue(0)
@@ -85,6 +126,19 @@ export function MangaReaderZoomSurface({
     const androidScrollOffsetX = useSharedValue(0)
     const androidScrollOffsetY = useSharedValue(0)
 
+    React.useEffect(() => {
+        tapViewportHeightValue.set(tapViewportHeight)
+        tapExclusionTopValue.set(tapExclusionTop)
+        tapExclusionBottomValue.set(tapExclusionBottom)
+    }, [
+        tapExclusionBottom,
+        tapExclusionBottomValue,
+        tapExclusionTop,
+        tapExclusionTopValue,
+        tapViewportHeight,
+        tapViewportHeightValue,
+    ])
+
     const setScrollViewNode = React.useCallback((node: ScrollView | null) => {
         nativeScrollRef.current = node
 
@@ -98,8 +152,18 @@ export function MangaReaderZoomSurface({
 
         if (zoomedRef.current === zoomed) return
         zoomedRef.current = zoomed
-        onZoomChange?.(zoomed)
-    }, [onZoomChange])
+        onZoomChangeRef.current?.(zoomed)
+    }, [])
+
+    const handleTap = React.useCallback(() => {
+        onTapRef.current?.()
+    }, [])
+
+    const clearPendingNativeTap = React.useCallback(() => {
+        if (!pendingNativeTapRef.current) return
+        clearTimeout(pendingNativeTapRef.current.timeout)
+        pendingNativeTapRef.current = null
+    }, [])
 
     const resetAndroidZoom = React.useCallback((animated: boolean = true) => {
         "worklet"
@@ -209,32 +273,128 @@ export function MangaReaderZoomSurface({
         const scrollNode = nativeScrollRef.current
         if (!scrollNode) return
 
+        nativeZoomScaleRef.current = 1
+        nativeScrollMetricsRef.current.offsetX = 0
+        nativeScrollMetricsRef.current.offsetY = 0
         scrollNode.setNativeProps({ zoomScale: 1 })
         scrollNode.scrollTo({ x: 0, y: 0, animated: false })
     }, [isNativePinch])
 
+    const handleNativeScrollLayout = React.useCallback((event: LayoutChangeEvent) => {
+        const { width, height } = event.nativeEvent.layout
+        nativeScrollMetricsRef.current.viewportWidth = width
+        nativeScrollMetricsRef.current.viewportHeight = height
+    }, [])
+
     const handleNativeZoomScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const zoomScale = event.nativeEvent.zoomScale ?? 1
-        reportZoomChange(zoomScale > 1.01)
+        nativeZoomScaleRef.current = zoomScale
+        nativeScrollMetricsRef.current.offsetX = event.nativeEvent.contentOffset.x
+        nativeScrollMetricsRef.current.offsetY = event.nativeEvent.contentOffset.y
+        nativeScrollMetricsRef.current.viewportWidth = event.nativeEvent.layoutMeasurement.width
+        nativeScrollMetricsRef.current.viewportHeight = event.nativeEvent.layoutMeasurement.height
+        reportZoomChange(zoomScale > ZOOM_THRESHOLD)
         onScroll?.(event)
     }, [onScroll, reportZoomChange])
 
+    const handleNativeDoubleTap = React.useCallback((x: number, y: number) => {
+        const scrollNode = nativeScrollRef.current
+        if (!scrollNode) return
+
+        const currentScale = nativeZoomScaleRef.current
+        const targetScale = currentScale > ZOOM_THRESHOLD ? 1 : Math.min(DOUBLE_TAP_SCALE, maxScale)
+        const { offsetX, offsetY, viewportWidth, viewportHeight } = nativeScrollMetricsRef.current
+        if (viewportWidth <= 0 || viewportHeight <= 0 || targetScale <= 0) return
+
+        const contentCenterX = (offsetX + x) / Math.max(currentScale, 1)
+        const contentCenterY = (offsetY + y) / Math.max(currentScale, 1)
+        const targetWidth = viewportWidth / targetScale
+        const targetHeight = viewportHeight / targetScale
+
+        scrollNode.scrollResponderZoomTo({
+            x: contentCenterX - targetWidth / 2,
+            y: contentCenterY - targetHeight / 2,
+            width: targetWidth,
+            height: targetHeight,
+            animated: true,
+        })
+    }, [maxScale])
+
+    const handleNativeTap = React.useCallback((x: number, y: number) => {
+        const now = Date.now()
+        const pendingTap = pendingNativeTapRef.current
+        const isDoubleTap = pendingTap
+            && now - pendingTap.timestamp <= DOUBLE_TAP_MAX_DELAY
+            && Math.hypot(x - pendingTap.x, y - pendingTap.y) <= DOUBLE_TAP_POSITION_TOLERANCE
+
+        if (isDoubleTap) {
+            clearTimeout(pendingTap.timeout)
+            pendingNativeTapRef.current = null
+            handleNativeDoubleTap(x, y)
+            return
+        }
+
+        if (pendingTap) {
+            clearTimeout(pendingTap.timeout)
+            pendingNativeTapRef.current = null
+            handleTap()
+        }
+
+        const timeout = setTimeout(() => {
+            if (pendingNativeTapRef.current?.timeout !== timeout) return
+            pendingNativeTapRef.current = null
+            handleTap()
+        }, DOUBLE_TAP_MAX_DELAY)
+
+        pendingNativeTapRef.current = { timeout, timestamp: now, x, y }
+    }, [handleNativeDoubleTap, handleTap])
+
     const tapGesture = React.useMemo(() => Gesture.Tap()
-        .enabled(!disabled)
+        .enabled(hasTapHandler && !disabled)
         .numberOfTaps(1)
         .maxDuration(220)
         .maxDistance(24)
         .onEnd((event, success) => {
-            const insideTopExclusion = tapExclusionTop > 0 && event.y <= tapExclusionTop
-            const insideBottomExclusion = tapExclusionBottom > 0
-                && tapViewportHeight > 0
-                && event.y >= tapViewportHeight - tapExclusionBottom
+            if (!success) return
+            if (isTapInsideExclusion(
+                event.y,
+                tapViewportHeightValue.value,
+                tapExclusionTopValue.value,
+                tapExclusionBottomValue.value,
+            )) return
+            runOnJS(handleTap)()
+        }), [
+        disabled,
+        handleTap,
+        hasTapHandler,
+        tapExclusionBottomValue,
+        tapExclusionTopValue,
+        tapViewportHeightValue,
+    ])
 
-            if (success && onTap) {
-                if (insideTopExclusion || insideBottomExclusion) return
-                runOnJS(onTap)()
-            }
-        }), [disabled, onTap, tapExclusionBottom, tapExclusionTop, tapViewportHeight])
+    const nativeTapGesture = React.useMemo(() => Gesture.Tap()
+        .enabled(isNativePinch)
+        .numberOfTaps(1)
+        .maxDuration(250)
+        .maxDistance(32)
+        .shouldCancelWhenOutside(false)
+        .cancelsTouchesInView(false)
+        .onEnd((event, success) => {
+            if (!success) return
+            if (isTapInsideExclusion(
+                event.absoluteY,
+                tapViewportHeightValue.value,
+                tapExclusionTopValue.value,
+                tapExclusionBottomValue.value,
+            )) return
+            runOnJS(handleNativeTap)(event.absoluteX, event.absoluteY)
+        }), [
+        handleNativeTap,
+        isNativePinch,
+        tapExclusionBottomValue,
+        tapExclusionTopValue,
+        tapViewportHeightValue,
+    ])
 
     React.useEffect(() => {
         if (disabled) {
@@ -243,8 +403,9 @@ export function MangaReaderZoomSurface({
     }, [disabled, reportZoomChange])
 
     React.useEffect(() => {
+        clearPendingNativeTap()
         reportZoomChange(false)
-    }, [instanceKey, reportZoomChange])
+    }, [clearPendingNativeTap, instanceKey, reportZoomChange])
 
     React.useEffect(() => {
         if (!isCustomPinch) return
@@ -291,25 +452,104 @@ export function MangaReaderZoomSurface({
     }, [isNativePinch, instanceKey, resetNativeZoomSurface])
 
     React.useEffect(() => () => {
+        clearPendingNativeTap()
         reportZoomChange(false)
-    }, [reportZoomChange])
+    }, [clearPendingNativeTap, reportZoomChange])
 
     const androidTapGesture = React.useMemo(() => Gesture.Tap()
-        .enabled(Boolean(onTap) && !disabled)
+        .enabled(hasTapHandler && !disabled)
         .numberOfTaps(1)
         .maxDuration(220)
         .maxDistance(24)
         .onEnd((event, success) => {
-            const insideTopExclusion = tapExclusionTop > 0 && event.y <= tapExclusionTop
-            const insideBottomExclusion = tapExclusionBottom > 0
-                && tapViewportHeight > 0
-                && event.y >= tapViewportHeight - tapExclusionBottom
+            if (!success) return
+            if (isTapInsideExclusion(
+                event.y,
+                tapViewportHeightValue.value,
+                tapExclusionTopValue.value,
+                tapExclusionBottomValue.value,
+            )) return
+            runOnJS(handleTap)()
+        }), [
+        disabled,
+        handleTap,
+        hasTapHandler,
+        tapExclusionBottomValue,
+        tapExclusionTopValue,
+        tapViewportHeightValue,
+    ])
 
-            if (success && onTap) {
-                if (insideTopExclusion || insideBottomExclusion) return
-                runOnJS(onTap)()
+    const androidDoubleTapGesture = React.useMemo(() => Gesture.Tap()
+        .enabled(isCustomPinch)
+        .numberOfTaps(2)
+        .maxDuration(220)
+        .maxDelay(DOUBLE_TAP_MAX_DELAY)
+        .maxDistance(24)
+        .onEnd((event, success) => {
+            if (!success) return
+            if (isTapInsideExclusion(
+                event.y,
+                tapViewportHeightValue.value,
+                tapExclusionTopValue.value,
+                tapExclusionBottomValue.value,
+            )) return
+
+            if (androidScale.value > ZOOM_THRESHOLD) {
+                resetAndroidZoom()
+                return
             }
-        }), [disabled, onTap, tapExclusionBottom, tapExclusionTop, tapViewportHeight])
+
+            const targetScale = Math.min(DOUBLE_TAP_SCALE, maxScale)
+            if (targetScale <= ZOOM_THRESHOLD) return
+
+            const focalX = androidScrollOffsetX.value + event.x - androidContainerX.value - androidContainerWidth.value / 2
+            const focalY = androidScrollOffsetY.value + event.y - androidContainerY.value - androidContainerHeight.value / 2
+
+            androidScale.value = withTiming(targetScale, ZOOM_TIMING_CONFIG)
+            androidTranslateX.value = 0
+            androidTranslateY.value = 0
+            androidFocalX.value = focalX
+            androidFocalY.value = focalY
+            androidSavedScale.value = targetScale
+            androidSavedTranslateX.value = 0
+            androidSavedTranslateY.value = 0
+            androidSavedFocalX.value = focalX
+            androidSavedFocalY.value = focalY
+            androidInitialFocalX.value = event.x
+            androidInitialFocalY.value = event.y
+            runOnJS(reportZoomChange)(true)
+        }), [
+        androidContainerHeight,
+        androidContainerWidth,
+        androidContainerX,
+        androidContainerY,
+        androidFocalX,
+        androidFocalY,
+        androidInitialFocalX,
+        androidInitialFocalY,
+        androidSavedFocalX,
+        androidSavedFocalY,
+        androidSavedScale,
+        androidSavedTranslateX,
+        androidSavedTranslateY,
+        androidScale,
+        androidScrollOffsetX,
+        androidScrollOffsetY,
+        androidTranslateX,
+        androidTranslateY,
+        isCustomPinch,
+        maxScale,
+        reportZoomChange,
+        resetAndroidZoom,
+        tapExclusionBottomValue,
+        tapExclusionTopValue,
+        tapViewportHeightValue,
+    ])
+
+    const androidTapGestures = React.useMemo(
+        () => Gesture.Exclusive(androidDoubleTapGesture, androidTapGesture),
+        [androidDoubleTapGesture, androidTapGesture],
+    )
 
     const androidPanOnlyGesture = React.useMemo(() => Gesture.Pan()
         .enabled(isCustomPinch)
@@ -435,13 +675,13 @@ export function MangaReaderZoomSurface({
         ],
     }), [androidFocalX, androidFocalY, androidScale, androidTranslateX, androidTranslateY])
 
-    if (isCustomPinch) {
-        const androidGesture = Gesture.Race(
-            androidPinchGesture,
-            androidPanOnlyGesture,
-            androidTapGesture,
-        )
+    const androidGesture = React.useMemo(() => Gesture.Race(
+        androidPinchGesture,
+        androidPanOnlyGesture,
+        androidTapGestures,
+    ), [androidPanOnlyGesture, androidPinchGesture, androidTapGestures])
 
+    if (isCustomPinch) {
         if (hasScrollableContainer) {
             return (
                 <GestureDetector key={surfaceKey} gesture={androidGesture}>
@@ -499,7 +739,7 @@ export function MangaReaderZoomSurface({
     }
 
     return (
-        <GestureDetector key={surfaceKey} gesture={tapGesture}>
+        <GestureDetector key={surfaceKey} gesture={nativeTapGesture}>
             <ScrollView
                 alwaysBounceHorizontal={false}
                 alwaysBounceVertical={false}
@@ -511,6 +751,7 @@ export function MangaReaderZoomSurface({
                 directionalLockEnabled
                 maximumZoomScale={maxScale}
                 minimumZoomScale={1}
+                onLayout={handleNativeScrollLayout}
                 onMomentumScrollEnd={handleNativeZoomScroll}
                 onScroll={handleNativeZoomScroll}
                 onScrollEndDrag={handleNativeZoomScroll}
