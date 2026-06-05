@@ -357,7 +357,7 @@ export function MangaReaderZoomSurface({
         .onEnd((event, success) => {
             if (!success) return
             if (isTapInsideExclusion(
-                event.y,
+                event.absoluteY,
                 tapViewportHeightValue.value,
                 tapExclusionTopValue.value,
                 tapExclusionBottomValue.value,
@@ -464,7 +464,7 @@ export function MangaReaderZoomSurface({
         .onEnd((event, success) => {
             if (!success) return
             if (isTapInsideExclusion(
-                event.y,
+                event.absoluteY,
                 tapViewportHeightValue.value,
                 tapExclusionTopValue.value,
                 tapExclusionBottomValue.value,
@@ -488,7 +488,7 @@ export function MangaReaderZoomSurface({
         .onEnd((event, success) => {
             if (!success) return
             if (isTapInsideExclusion(
-                event.y,
+                event.absoluteY,
                 tapViewportHeightValue.value,
                 tapExclusionTopValue.value,
                 tapExclusionBottomValue.value,
