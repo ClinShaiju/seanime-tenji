@@ -1,3 +1,4 @@
+import { getClientIdentity } from "@/api/client/client-identity"
 import {
     Anime_Entry,
     Anime_Episode,
@@ -416,7 +417,7 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
                         autoSelect: true,
                         fileId: "",
                         playbackType: "externalPlayerLink",
-                        clientId: "mobile",
+                        clientId: getClientIdentity().clientId,
                     },
                     {
                         onSuccess: () => {
@@ -441,7 +442,7 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
                     aniDBEpisode: episode.aniDBEpisode,
                     autoSelect: true,
                     playbackType: "externalPlayerLink",
-                    clientId: "mobile",
+                    clientId: getClientIdentity().clientId,
                 },
                 {
                     onSuccess: () => {
@@ -510,7 +511,7 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
                         fileIndex: params.fileIndex,
                         batchEpisodeFiles: params.batchEpisodeFiles,
                         playbackType: "externalPlayerLink",
-                        clientId: "mobile",
+                        clientId: getClientIdentity().clientId,
                     },
                     {
                         onSuccess: () => {
@@ -538,7 +539,7 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
                     fileIndex: params.fileIndex,
                     batchEpisodeFiles: params.batchEpisodeFiles,
                     playbackType: "externalPlayerLink",
-                    clientId: "mobile",
+                    clientId: getClientIdentity().clientId,
                 },
                 {
                     onSuccess: () => {

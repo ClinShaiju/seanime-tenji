@@ -1,3 +1,4 @@
+import { getClientIdentity } from "@/api/client/client-identity"
 import { useUpdateAnimeEntryProgress } from "@/api/hooks/anime_entries.hooks"
 import { useUpdateContinuityWatchHistoryItem } from "@/api/hooks/continuity.hooks"
 import { usePlaybackCancelManualTracking, usePlaybackStartManualTracking } from "@/api/hooks/playback_manager.hooks"
@@ -11,7 +12,6 @@ const log = logger("continuity-sync")
 
 const CONTINUITY_UPDATE_INTERVAL_MS = 15_000 // every 15s
 const COMPLETION_THRESHOLD = 0.85 // 85% watched = completed
-const MANUAL_TRACKING_CLIENT_ID = "mobile"
 
 export function useContinuitySync(
     source: MobilePlaybackSource | null,
@@ -31,7 +31,7 @@ export function useContinuitySync(
         startManualTracking({
             mediaId: source.mediaId,
             episodeNumber: source.episodeNumber,
-            clientId: MANUAL_TRACKING_CLIENT_ID,
+            clientId: getClientIdentity().clientId,
         })
 
         return () => {

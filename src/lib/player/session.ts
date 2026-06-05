@@ -12,6 +12,7 @@ import type {
 } from "@/api/generated/types"
 import { useServerUrl } from "@/atoms/server.atoms"
 import { websocketAtom } from "@/atoms/websocket.atoms"
+import { logger } from "@/lib/utils/logger"
 import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
 import { atom, useAtom } from "jotai"
@@ -22,6 +23,8 @@ import { getPlayerPreferences } from "./player-preferences"
 import type { AnimeEntryLaunchView, MobilePlaybackSource, PlayerNextEpisodeAction } from "./types"
 
 export const currentPlaybackSourceAtom = atom<MobilePlaybackSource | null>(null)
+
+const log = logger("player-session")
 
 export function resolvePlaybackMetadataFromCache(
     queryClient: any,
@@ -484,11 +487,14 @@ export function usePlayerEventListener() {
                 try {
                     parsed = JSON.parse(event.data as string)
                 }
-                catch {
+                catch (err) {
+                    log.warning("Failed to parse WebSocket message data:", err)
                     return
                 }
                 const message = parsed as { type?: string; payload?: unknown }
                 if (typeof message?.type !== "string") return
+
+                log.info("WebSocket event received:", message.type, message.payload)
 
                 if (message.type === "torrentstream-state") {
                     const payload = message.payload as TorrentStreamSocketPayload | undefined
@@ -607,8 +613,15 @@ export function usePlayerEventListener() {
                 // externalPlayerLink torrent stream URL
                 if (message.type === "external-player-open-url") {
                     const payload = message.payload as ExternalPlayerOpenURLPayload
-                    if (!payload?.url) return
-                    if (typeof payload.mediaId !== "number" || typeof payload.episodeNumber !== "number") return
+                    log.info("Processing external-player-open-url:", payload)
+                    if (!payload?.url) {
+                        log.warning("external-player-open-url payload is missing URL")
+                        return
+                    }
+                    if (typeof payload.mediaId !== "number" || typeof payload.episodeNumber !== "number") {
+                        log.warning("external-player-open-url payload is missing mediaId or episodeNumber")
+                        return
+                    }
 
                     const base = getServerBaseUrl(serverUrl)
                     const resolvedUrl = payload.url
@@ -664,12 +677,19 @@ export function usePlayerEventListener() {
                     setLoadingMessage(null)
                     setError(null)
 
+                    log.info("Resolved playing source:", source)
+
                     // external player
                     const prefs = getPlayerPreferences()
                     if (prefs.externalPlayerTemplate) {
+                        log.info("Opening external player with template:", prefs.externalPlayerTemplate)
                         openExternalPlayerURL(prefs.externalPlayerTemplate, resolvedUrl).then(opened => {
-                            if (opened) return
+                            if (opened) {
+                                log.info("Successfully opened external player URL")
+                                return
+                            }
 
+                            log.warning("Failed to open external player URL, falling back to internal route")
                             setSource(source)
                             setPlayerOpen(true)
                             router.push("/(app)/(media)/player" as never)
@@ -677,6 +697,7 @@ export function usePlayerEventListener() {
                         return
                     }
 
+                    log.info("Opening internal media player")
                     setSource(source)
                     setPlayerOpen(true)
                     router.push("/(app)/(media)/player" as never)

@@ -1,4 +1,4 @@
-import { saveClientIdentityFromHeaders } from "@/api/client/client-identity"
+import { getClientHeaders, saveClientIdentityFromHeaders } from "@/api/client/client-identity"
 import { getServerAuthHeaders } from "@/api/client/server-auth"
 import { getServerBaseUrl } from "@/api/client/server-url"
 import { getStoredServerAuthToken, useServerAuthToken, useServerUrl, useSetServerAuthToken } from "@/atoms/server.atoms"
@@ -98,6 +98,7 @@ export async function buildSeaQuery<T, D = unknown>(
         headers: {
             "Content-Type": "application/json",
             ...getServerAuthHeaders(resolvedAuthToken),
+            ...getClientHeaders(),
         },
     }
 

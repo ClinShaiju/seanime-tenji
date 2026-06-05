@@ -49,11 +49,6 @@ export default function Screen() {
             showErrorToast("URL must start with http:// or https://")
             return
         }
-
-        if (sanitizedUrl.includes("127.0.0.1") || sanitizedUrl.includes("localhost")) {
-            showErrorToast("URL must not be localhost")
-        }
-
         void (async () => {
             if (sanitizedUrl.endsWith("/")) {
                 sanitizedUrl = sanitizedUrl.slice(0, -1)

@@ -95,7 +95,7 @@ function saveClientIdentity(clientId: string, clientIdProof: string = ""): Clien
     }
 }
 
-function getClientIdentity(): ClientIdentity {
+export function getClientIdentity(): ClientIdentity {
     const existing = readStoredClientIdentity()
     if (existing.clientId) {
         return existing
