@@ -69,6 +69,11 @@ type TorrentStreamPickerSheetProps = {
     onDownloadFile?: (torrent: HibikeTorrent_AnimeTorrent, fileId: string | null) => void
     isDownloading?: boolean
     hasTorrentClient?: boolean
+    searchAcrossProviders: boolean
+    onToggleSearchAcrossProviders: () => void
+    extraProviderIds: string[]
+    onSelectExtraProviderIds: (ids: string[]) => void
+    onSelectStage: (stage: TorrentSheetStage) => void
 }
 
 export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
@@ -120,6 +125,11 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
         onDownloadFile,
         isDownloading = false,
         hasTorrentClient = false,
+        searchAcrossProviders,
+        onToggleSearchAcrossProviders,
+        extraProviderIds,
+        onSelectExtraProviderIds,
+        onSelectStage,
     } = props
 
     const primaryLabel = React.useMemo(() => {
@@ -194,6 +204,25 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
                             </SheetFooterButton>
                         )}
                     </View>
+                </SheetFooter>
+            )
+        }
+
+        if (pickerStage === "providers") {
+            return (
+                <SheetFooter>
+                    <SheetFooterButton
+                        variant="cancel"
+                        onPress={onBackToTorrentList}
+                    >
+                        <Text className="font-medium text-foreground/70">Back</Text>
+                    </SheetFooterButton>
+                    <SheetFooterButton
+                        variant="primary"
+                        onPress={onBackToTorrentList}
+                    >
+                        <Text className="font-semibold text-primary-foreground">Confirm</Text>
+                    </SheetFooterButton>
                 </SheetFooter>
             )
         }
@@ -288,6 +317,19 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
                         torrents={torrents}
                         torrentMetadataByInfoHash={torrentMetadataByInfoHash}
                         usePreviousBatch={usePreviousBatch}
+                        searchAcrossProviders={searchAcrossProviders}
+                        onToggleSearchAcrossProviders={onToggleSearchAcrossProviders}
+                        extraProviderIds={extraProviderIds}
+                        onSelectExtraProviderIds={onSelectExtraProviderIds}
+                        onSelectStage={onSelectStage}
+                    />
+                ) : pickerStage === "providers" ? (
+                    <TorrentProviderSelectionStage
+                        providerExtensions={providerExtensions}
+                        extraProviderIds={extraProviderIds}
+                        selectedProviderId={selectedProviderId}
+                        onSelectExtraProviderIds={onSelectExtraProviderIds}
+                        onBack={onBackToTorrentList}
                     />
                 ) : (
                     <TorrentFileSelectionStage
@@ -334,6 +376,11 @@ type TorrentSelectionStageProps = {
     torrents: HibikeTorrent_AnimeTorrent[]
     torrentMetadataByInfoHash?: Record<string, Habari_Metadata | undefined>
     usePreviousBatch: boolean
+    searchAcrossProviders: boolean
+    onToggleSearchAcrossProviders: () => void
+    extraProviderIds: string[]
+    onSelectExtraProviderIds: (ids: string[]) => void
+    onSelectStage: (stage: TorrentSheetStage) => void
 }
 
 function TorrentSelectionStage(props: TorrentSelectionStageProps) {
@@ -367,6 +414,11 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
         torrents,
         torrentMetadataByInfoHash,
         usePreviousBatch,
+        searchAcrossProviders,
+        onToggleSearchAcrossProviders,
+        extraProviderIds,
+        onSelectExtraProviderIds,
+        onSelectStage,
     } = props
 
     const providerOptions = React.useMemo(
@@ -437,6 +489,30 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                     onSelect={onSelectProvider}
                     title="Select Provider"
                 />
+            )}
+
+            {selectedProviderId !== NONE_PROVIDER && providerOptions.length > 1 && (
+                <View className="gap-2.5">
+                    <LabeledSwitch
+                        label="Search across providers"
+                        checked={searchAcrossProviders}
+                        onToggle={onToggleSearchAcrossProviders}
+                        helper="Runs the same search against other installed providers."
+                    />
+                    {searchAcrossProviders && (
+                        <Pressable
+                            onPress={() => onSelectStage("providers")}
+                            className="flex-row items-center justify-between h-11 px-3.5 rounded-xl border border-white/10 bg-white/[0.04] active:bg-white/5 mt-0.5"
+                        >
+                            <Text className="text-sm font-medium text-white">
+                                {extraProviderIds.filter(id => id !== selectedProviderId).length === 0
+                                    ? "Select providers..."
+                                    : `${extraProviderIds.filter(id => id !== selectedProviderId).length} selected`}
+                            </Text>
+                            <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.45)" />
+                        </Pressable>
+                    )}
+                </View>
             )}
 
             {selectedProviderId !== NONE_PROVIDER && (
@@ -700,6 +776,129 @@ function TorrentFileSelectionStage({ filePreviews, isLoading, onBack, selectedFi
     )
 }
 
+type TorrentProviderSelectionStageProps = {
+    providerExtensions: ExtensionRepo_AnimeTorrentProviderExtensionItem[]
+    extraProviderIds: string[]
+    selectedProviderId: string
+    onSelectExtraProviderIds: (ids: string[]) => void
+    onBack: () => void
+}
+
+function TorrentProviderSelectionStage({
+    providerExtensions,
+    extraProviderIds,
+    selectedProviderId,
+    onSelectExtraProviderIds,
+    onBack,
+}: TorrentProviderSelectionStageProps) {
+    const [searchQuery, setSearchQuery] = React.useState("")
+
+    const providerOptions = React.useMemo(
+        () => [...providerExtensions]
+            .filter(p => p.id !== selectedProviderId)
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        [providerExtensions, selectedProviderId],
+    )
+
+    const filteredProviders = React.useMemo(() => {
+        if (!searchQuery.trim()) return providerOptions
+        const query = searchQuery.toLowerCase().trim()
+        return providerOptions.filter(p => p.name.toLowerCase().includes(query))
+    }, [providerOptions, searchQuery])
+
+    const handleSelectAll = React.useCallback(() => {
+        onSelectExtraProviderIds(providerOptions.map(p => p.id))
+    }, [onSelectExtraProviderIds, providerOptions])
+
+    const handleClearAll = React.useCallback(() => {
+        onSelectExtraProviderIds([])
+    }, [onSelectExtraProviderIds])
+
+    return (
+        <View className="gap-3">
+            <View className="flex-row justify-between items-center">
+                <FormSectionLabel>Additional Providers</FormSectionLabel>
+                <Pressable onPress={onBack}>
+                    <Text className="text-xs font-semibold text-white/40">
+                        Back to releases
+                    </Text>
+                </Pressable>
+            </View>
+
+            <View className="h-11 flex-row items-center rounded-2xl border border-white/10 bg-white/5 px-4">
+                <BottomSheetTextInput
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Filter providers..."
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    className="flex-1 py-0 text-foreground text-sm"
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                />
+            </View>
+
+            <View className="flex-row gap-2">
+                <Pressable
+                    onPress={handleSelectAll}
+                    className="flex-1 h-9 items-center justify-center rounded-xl bg-white/5 border border-white/10 active:bg-white/10"
+                >
+                    <Text className="text-xs font-semibold text-white/70">Select All</Text>
+                </Pressable>
+                <Pressable
+                    onPress={handleClearAll}
+                    className="flex-1 h-9 items-center justify-center rounded-xl bg-white/5 border border-white/10 active:bg-white/10"
+                >
+                    <Text className="text-xs font-semibold text-white/70">Clear All</Text>
+                </Pressable>
+            </View>
+
+            {filteredProviders.length === 0 ? (
+                <View className="py-8 items-center">
+                    <Text className="text-sm text-white/35">No providers found</Text>
+                </View>
+            ) : (
+                <View className="gap-2">
+                    {filteredProviders.map(p => {
+                        const isActive = extraProviderIds.includes(p.id)
+                        return (
+                            <Pressable
+                                key={p.id}
+                                onPress={() => {
+                                    if (isActive) {
+                                        onSelectExtraProviderIds(extraProviderIds.filter(id => id !== p.id))
+                                    } else {
+                                        onSelectExtraProviderIds([...extraProviderIds, p.id])
+                                    }
+                                }}
+                                className={cn(
+                                    "rounded-2xl p-3.5 border flex-row justify-between items-center",
+                                    isActive
+                                        ? "bg-indigo-500/15 border-indigo-400/30"
+                                        : "bg-white/5 border-white/10",
+                                )}
+                            >
+                                <View className="flex-1 gap-1">
+                                    <Text className="text-sm font-bold text-white" numberOfLines={1}>
+                                        {p.name}
+                                    </Text>
+                                    {!!p.lang && (
+                                        <Text className="text-[10px] text-white/35 uppercase">
+                                            {p.lang}
+                                        </Text>
+                                    )}
+                                </View>
+                                {isActive && (
+                                    <Ionicons name="checkmark-circle" size={18} color="#a5b4fc" />
+                                )}
+                            </Pressable>
+                        )
+                    })}
+                </View>
+            )}
+        </View>
+    )
+}
+
 function ChoiceChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
     return (
         <Pressable
@@ -931,6 +1130,13 @@ function TorrentMetadataTags({ metadata }: { metadata?: Habari_Metadata }) {
     )
 }
 
+function formatProviderName(provider?: string) {
+    if (!provider) return ""
+    if (provider.toLowerCase() === "nyaa") return "Nyaa"
+    if (provider.toLowerCase() === "animetosho") return "AnimeTosho"
+    return provider.charAt(0).toUpperCase() + provider.slice(1)
+}
+
 function TorrentCard({
     torrent,
     episodes,
@@ -1013,6 +1219,13 @@ function TorrentCard({
                             <View className="flex-row items-center gap-1">
                                 <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.28)" />
                                 <Text className="text-xs text-white/32">{relDate}</Text>
+                            </View>
+                        )}
+
+                        {!!torrent.provider && (
+                            <View className="flex-row items-center gap-1">
+                                <Ionicons name="server-outline" size={11} color="rgba(255,255,255,0.28)" />
+                                <Text className="text-xs text-white/32">{formatProviderName(torrent.provider)}</Text>
                             </View>
                         )}
                     </View>

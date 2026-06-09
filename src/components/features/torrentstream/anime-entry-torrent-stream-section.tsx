@@ -272,6 +272,11 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                 torrentMetadataByInfoHash={torrentStream.torrentMetadataByInfoHash}
                 usePreviousBatch={torrentStream.usePreviousBatch}
                 resolution={torrentStream.resolution}
+                searchAcrossProviders={torrentStream.searchAcrossProviders}
+                onToggleSearchAcrossProviders={() => torrentStream.setSearchAcrossProviders(!torrentStream.searchAcrossProviders)}
+                extraProviderIds={torrentStream.extraProviderIds}
+                onSelectExtraProviderIds={torrentStream.setExtraProviderIds}
+                onSelectStage={torrentStream.setSheetStage}
             />
         </>
     )

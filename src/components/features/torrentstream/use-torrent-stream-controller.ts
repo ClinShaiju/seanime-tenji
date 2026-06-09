@@ -21,6 +21,7 @@ import {
     useTorrentstreamStopStream,
 } from "@/api/hooks/torrentstream.hooks"
 import { useServerStatus } from "@/atoms/server.atoms"
+import { torrentSearchAcrossProvidersAtom, torrentSearchExtraProviderIdsAtom } from "@/atoms/torrent-search.atoms"
 import { getDefaultPlaybackSource } from "@/lib/default-playback-source"
 import {
     activeStreamSessionAtom,
@@ -41,7 +42,7 @@ const TORBOX_DEBRID_PROVIDER = "torbox"
 export type StreamMode = "torrent" | "debrid"
 export type TorrentResolution = (typeof TORRENT_RESOLUTIONS)[number] | undefined
 export type TorrentSearchMode = "smart" | "simple"
-export type TorrentSheetStage = "torrents" | "files"
+export type TorrentSheetStage = "torrents" | "files" | "providers"
 export type StreamEpisodeLaunchMode = "manual" | "previous-batch"
 
 type StreamFilePreview = Torrentstream_FilePreview | DebridClient_FilePreview
@@ -82,6 +83,8 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
     const [selectedTorrent, setSelectedTorrent] = React.useState<HibikeTorrent_AnimeTorrent | null>(null)
     const [selectedFileId, setSelectedFileId] = React.useState<string | null>(null)
     const [selectedProviderId, setSelectedProviderId] = React.useState<string>(NONE_PROVIDER)
+    const [searchAcrossProviders, setSearchAcrossProviders] = useAtom(torrentSearchAcrossProvidersAtom)
+    const [extraProviderIds, setExtraProviderIds] = useAtom(torrentSearchExtraProviderIdsAtom)
     const [searchMode, setSearchMode] = React.useState<TorrentSearchMode>("smart")
     const [searchQuery, setSearchQuery] = React.useState("")
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
@@ -208,10 +211,23 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
     const mediaId = entry.media?.id ?? 0
     const absoluteOffset = entry.downloadInfo?.absoluteOffset ?? 0
 
+    const activeExtraProviderIds = React.useMemo(() => {
+        const validProviderIds = new Set(providerExtensions?.map(ext => ext.id) ?? [])
+        return extraProviderIds.filter(
+            id => id !== selectedProviderId && validProviderIds.has(id),
+        )
+    }, [extraProviderIds, providerExtensions, selectedProviderId])
+
+    const searchProvider = React.useMemo(() => {
+        if (selectedProviderId === NONE_PROVIDER || !selectedProviderId) return undefined
+        if (!searchAcrossProviders || activeExtraProviderIds.length === 0) return selectedProviderId
+        return [selectedProviderId, ...activeExtraProviderIds].join(",")
+    }, [activeExtraProviderIds, searchAcrossProviders, selectedProviderId])
+
     const searchVariables = React.useMemo(
         () => ({
             type: searchMode,
-            provider: selectedProviderId !== NONE_PROVIDER ? selectedProviderId : undefined,
+            provider: searchProvider,
             query:
                 searchMode === "simple" || selectedProvider?.settings?.smartSearchFilters?.includes("query")
                     ? deferredSearchQuery || undefined
@@ -224,7 +240,7 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
             absoluteOffset: absoluteOffset > 0 ? absoluteOffset : undefined,
         }),
         [absoluteOffset, bestRelease, defaultEpisodeNumber, deferredSearchQuery, entry.media, resolution, searchMode, selectedEpisode?.episodeNumber,
-            selectedProvider?.settings?.smartSearchFilters, selectedProviderId, smartSearchBatch],
+            selectedProvider?.settings?.smartSearchFilters, searchProvider, smartSearchBatch],
     )
 
     const {
@@ -861,6 +877,11 @@ export function useTorrentStreamController({ entry }: UseTorrentStreamController
         selectedProviderSupportsSmartSearch: selectedProvider?.settings?.canSmartSearch ?? false,
         smartSearchFilters: selectedProvider?.settings?.smartSearchFilters ?? [],
         setIsPreparing,
+        searchAcrossProviders,
+        setSearchAcrossProviders,
+        extraProviderIds,
+        setExtraProviderIds,
+        activeExtraProviderIds,
     }
 }
 
