@@ -290,14 +290,24 @@ export function useMpvPlayer() {
                 title: c.title,
             }))
 
-            setState(s => ({
-                ...s,
-                subtitleTracks: mappedSubs,
-                audioTracks: mappedAudio,
-                chapters: mappedChapters,
-                activeSubtitleTrackId: mappedSubs.find(t => t.selected)?.id ?? null,
-                activeAudioTrackId: mappedAudio.find(t => t.selected)?.id ?? null,
-            }))
+            setState(s => {
+                const prefs = getPlayerPreferences()
+                const showSubtitles = prefs.showSubtitles
+                const activeSubId = showSubtitles ? (mappedSubs.find(t => t.selected)?.id ?? null) : null
+                const updatedSubs = mappedSubs.map(t => ({
+                    ...t,
+                    selected: showSubtitles ? t.selected : false,
+                }))
+
+                return {
+                    ...s,
+                    subtitleTracks: updatedSubs,
+                    audioTracks: mappedAudio,
+                    chapters: mappedChapters,
+                    activeSubtitleTrackId: activeSubId,
+                    activeAudioTrackId: mappedAudio.find(t => t.selected)?.id ?? null,
+                }
+            })
         }
         catch (e) {
             if (!isMissingMpvViewError(e)) {
@@ -336,6 +346,9 @@ export function useMpvPlayer() {
         runNativeCommand("setAudioDelay", ref => ref.setAudioDelay(prefs.audioDelay))
         runNativeCommand("setSubtitleFontSize", ref => ref.setSubtitleFontSize(prefs.subtitleFontSize))
         runNativeCommand("setSubtitleVisibility", ref => ref.setSubtitleVisibility(prefs.showSubtitles))
+        if (!prefs.showSubtitles) {
+            runNativeCommand("disableSubtitles", ref => ref.disableSubtitles())
+        }
         runNativeCommand("setSubtitlePosition", ref => ref.setSubtitlePosition(100))
     }, [runNativeCommand, state.status])
 
@@ -359,13 +372,17 @@ export function useMpvPlayer() {
             }
         }
 
-        const preferredSub = findPreferredTrack(state.subtitleTracks, prefs.preferredSubtitleLanguages, prefs.ignoredSubtitleLabels)
-        if (preferredSub !== null) {
-            const currentSub = state.subtitleTracks.find(t => t.selected)
-            if (currentSub?.id !== preferredSub) {
-                log.info(`Auto-selecting preferred subtitle track: ${preferredSub}`)
-                runNativeCommand("setSubtitleTrack", nativeRef => nativeRef.setSubtitleTrack(preferredSub))
+        if (prefs.showSubtitles) {
+            const preferredSub = findPreferredTrack(state.subtitleTracks, prefs.preferredSubtitleLanguages, prefs.ignoredSubtitleLabels)
+            if (preferredSub !== null) {
+                const currentSub = state.subtitleTracks.find(t => t.selected)
+                if (currentSub?.id !== preferredSub) {
+                    log.info(`Auto-selecting preferred subtitle track: ${preferredSub}`)
+                    runNativeCommand("setSubtitleTrack", nativeRef => nativeRef.setSubtitleTrack(preferredSub))
+                }
             }
+        } else {
+            runNativeCommand("disableSubtitles", ref => ref.disableSubtitles())
         }
     }, [runNativeCommand, state.audioTracks, state.subtitleTracks])
 
@@ -408,6 +425,11 @@ export function useMpvPlayer() {
 
     const setAudioTrack = React.useCallback((trackId: number) => {
         runNativeCommand("setAudioTrack", ref => ref.setAudioTrack(trackId))
+        setState(s => ({
+            ...s,
+            activeAudioTrackId: trackId,
+            audioTracks: s.audioTracks.map(t => ({ ...t, selected: t.id === trackId })),
+        }))
     }, [runNativeCommand])
 
     const setSubtitleTrack = React.useCallback((trackId: number) => {
@@ -419,6 +441,15 @@ export function useMpvPlayer() {
         }
         runNativeCommand("setSubtitleVisibility", ref => ref.setSubtitleVisibility(visible))
         setPlayerPreferences({ showSubtitles: visible })
+
+        setState(s => ({
+            ...s,
+            activeSubtitleTrackId: visible ? trackId : null,
+            subtitleTracks: s.subtitleTracks.map(t => ({
+                ...t,
+                selected: visible ? t.id === trackId : false,
+            })),
+        }))
     }, [runNativeCommand])
 
     const stop = React.useCallback(() => {

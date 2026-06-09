@@ -255,10 +255,12 @@ export function PlayerPanelOverlay(props: PlayerPanelOverlayProps) {
                     )}
                     {panel === "subtitle-tracks" && (
                         <TrackContent
-                            tracks={state.subtitleTracks} onSelect={(id) => {
-                            props.onSetSubtitleTrack(id)
-                            onClose()
-                        }}
+                            tracks={state.subtitleTracks}
+                            allowNone
+                            onSelect={(id) => {
+                                props.onSetSubtitleTrack(id)
+                                onClose()
+                            }}
                         />
                     )}
                     {panel === "external-subtitles" && (
@@ -435,7 +437,7 @@ function AudioSubtitlesContent({ state, prefs, onNavigate }: {
     state: PlayerStateType; prefs: PlayerPreferences; onNavigate: (p: PlayerPanel) => void
 }) {
     const selectedAudio = state.audioTracks.find(t => t.selected)
-    const selectedSub = state.subtitleTracks.find(t => t.selected)
+    const selectedSub = prefs.showSubtitles ? state.subtitleTracks.find(t => t.selected) : undefined
 
     type Row = { label: string; value: string; panel: PlayerPanel; icon: React.ReactNode; accent?: string }
 
@@ -632,8 +634,16 @@ function SubSizeContent({ current, onSelect }: { current: number; onSelect: (s: 
     )
 }
 
-function TrackContent({ tracks, onSelect }: { tracks: PlayerTrack[]; onSelect: (id: number) => void }) {
-    if (tracks.length === 0) {
+function TrackContent({
+    tracks,
+    allowNone = false,
+    onSelect,
+}: {
+    tracks: PlayerTrack[]
+    allowNone?: boolean
+    onSelect: (id: number) => void
+}) {
+    if (tracks.length === 0 && !allowNone) {
         return (
             <View className="items-center gap-2 pt-9">
                 <Captions size={28} color="rgba(255,255,255,0.15)" />
@@ -641,23 +651,42 @@ function TrackContent({ tracks, onSelect }: { tracks: PlayerTrack[]; onSelect: (
             </View>
         )
     }
+
+    const isNoneSelected = tracks.every(t => !t.selected)
+
     return (
         <View className={PANEL_CARD_CLASS}>
-            {tracks.map((t, idx) => (
-                <PanelSelectableRow key={t.id} active={t.selected} borderTop={idx > 0} onPress={() => onSelect(t.id)}>
+            {allowNone && (
+                <PanelSelectableRow
+                    active={isNoneSelected}
+                    onPress={() => onSelect(-1)}
+                >
                     <View className="mr-2 flex-1">
-                        <Text className={cn("text-sm text-white", t.selected && "font-semibold text-player-text")} numberOfLines={1}>
-                            {t.title || t.language || `Track ${t.id}`}
+                        <Text className={cn("text-sm text-white", isNoneSelected && "font-semibold text-player-text")} numberOfLines={1}>
+                            None
                         </Text>
-                        {(t.language || t.codec) && (
-                            <Text className="mt-0.5 text-xs text-white/35" numberOfLines={1}>
-                                {[t.language, t.codec].filter(Boolean).join(" \u00b7 ")}
-                            </Text>
-                        )}
                     </View>
-                    {t.selected && <Check size={14} color={BRAND_ACCENT} />}
+                    {isNoneSelected && <Check size={14} color={BRAND_ACCENT} />}
                 </PanelSelectableRow>
-            ))}
+            )}
+            {tracks.map((t, idx) => {
+                const borderTop = allowNone ? true : idx > 0
+                return (
+                    <PanelSelectableRow key={t.id} active={t.selected} borderTop={borderTop} onPress={() => onSelect(t.id)}>
+                        <View className="mr-2 flex-1">
+                            <Text className={cn("text-sm text-white", t.selected && "font-semibold text-player-text")} numberOfLines={1}>
+                                {t.title || t.language || `Track ${t.id}`}
+                            </Text>
+                            {(t.language || t.codec) && (
+                                <Text className="mt-0.5 text-xs text-white/35" numberOfLines={1}>
+                                    {[t.language, t.codec].filter(Boolean).join(" \u00b7 ")}
+                                </Text>
+                            )}
+                        </View>
+                        {t.selected && <Check size={14} color={BRAND_ACCENT} />}
+                    </PanelSelectableRow>
+                )
+            })}
         </View>
     )
 }
