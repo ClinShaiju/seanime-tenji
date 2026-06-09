@@ -49,43 +49,6 @@ Seanime Tenji is a **companion app** to your Seanime media server with a **built
 
 Seanime Tenji is built with React Native and Expo. Detailed guides on setup and local development workflows can be found in the [Contributing Guide](CONTRIBUTING.md).
 
-### Quick Start
-
-1. **Install Dependencies**:
-   ```bash
-   npm install
-   ```
-
-2. **Start the Metro Bundler**:
-   ```bash
-   npm run dev:start
-   ```
-
-3. **Run on Emulator / Simulator**:
-	* **Android**:
-	  ```bash
-	  npx expo run:android
-	  ```
-	* **iOS**:
-	  ```bash
-	  npm run dev:ios
-	  ```
-
-### Local Build & Development Notes
-
-When building and testing Seanime Tenji locally, keep these integration requirements in mind:
-
-* **Physical iOS Devices & Signing**: To test on a physical iOS device, configure your Apple Developer Team ID inside a `.env.local` file at the root:
-  ```env
-  EXPO_APPLE_TEAM_ID=YOUR_TEAM_ID
-  ```
-
-* **Libmpv Integration (Android)**: The application uses a custom Expo config plugin (`plugins/withLibcppPickFirst.js`) to merge library symbols required by `libmpv.so` (the video player engine).
-  Running a standard prebuild (`npx expo prebuild`) handles this configuration automatically.
-
-* **Hermes and JS Proxies**: To prevent the Hermes engine from throwing `native state unsupported` exceptions, the custom player modules are wrapped in plain JavaScript objects rather than JS Proxy
-  objects.
-
 ---
 
 > [!NOTE]

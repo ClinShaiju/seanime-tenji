@@ -130,10 +130,11 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
     )
 
     // keep the next chapter warm so chapter turns do not flash a loader
+    // devnote: disabled for local-manga to prevent cache pollution (until i fix the server-side handling)
     useGetMangaEntryPages({
         mediaId,
-        provider: isConnected && nextChapter ? nextChapter.provider : undefined,
-        chapterId: isConnected && nextChapter ? nextChapter.chapterId : undefined,
+        provider: (isConnected && nextChapter && provider !== "local-manga") ? nextChapter.provider : undefined,
+        chapterId: (isConnected && nextChapter && provider !== "local-manga") ? nextChapter.chapterId : undefined,
         doublePage: isDoublePageOrLongStrip,
     })
 

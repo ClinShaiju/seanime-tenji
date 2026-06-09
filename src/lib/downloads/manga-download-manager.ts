@@ -580,11 +580,37 @@ function processNextInQueue(): void {
 
     const maxWorkers = getMangaWorkerCount()
 
-    while (activeDownloads.size < maxWorkers && downloadQueue.length > 0) {
-        const item = downloadQueue.shift()
-        if (!item) return
+    // check if any active download is for local-manga
+    let hasActiveLocalManga = Array.from(activeDownloads.values()).some(
+        d => d.provider === "local-manga",
+    )
 
-        void processQueueItem(item)
+    let activeCount = activeDownloads.size
+
+    for (let i = 0; i < downloadQueue.length; i++) {
+        if (activeCount >= maxWorkers) {
+            break
+        }
+
+        const nextItem = downloadQueue[i]
+        if (!nextItem) continue
+
+        const isLocalManga = nextItem.provider === "local-manga"
+
+        // serialize local-manga downloads to prevent backend cache pollution until i fix it
+        if (isLocalManga && hasActiveLocalManga) {
+            continue
+        }
+
+        downloadQueue.splice(i, 1)
+        i--
+
+        if (isLocalManga) {
+            hasActiveLocalManga = true
+        }
+
+        void processQueueItem(nextItem)
+        activeCount++
     }
 }
 

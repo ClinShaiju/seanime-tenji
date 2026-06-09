@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 - 🎉 Alpha release
 
+### OTA (6/9):
+
+- 🦺 Local Manga: Fixed cache pollution causing incorrect chapters being shown
+
 ### OTA:
 
 - ⚡️ Manga: Double tap to zoom in/out
