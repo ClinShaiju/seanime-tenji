@@ -506,9 +506,8 @@ export function usePlayerEventListener() {
                 const message = parsed as { type?: string; payload?: unknown }
                 if (typeof message?.type !== "string") return
 
-                log.info("WebSocket event received:", message.type, message.payload)
-
                 if (message.type === "torrentstream-state") {
+                    log.info("WebSocket event received:", message.type, message.payload)
                     const payload = message.payload as TorrentStreamSocketPayload | undefined
                     if (typeof payload?.state !== "string") return
 
@@ -589,6 +588,7 @@ export function usePlayerEventListener() {
                 }
 
                 if (message.type === "debrid-stream-state") {
+                    log.info("WebSocket event received:", message.type, message.payload)
                     const payload = message.payload as DebridClient_StreamState | undefined
                     if (!payload?.status) return
 
@@ -624,6 +624,7 @@ export function usePlayerEventListener() {
 
                 // externalPlayerLink torrent stream URL
                 if (message.type === "external-player-open-url") {
+                    log.info("WebSocket event received:", message.type, message.payload)
                     const payload = message.payload as ExternalPlayerOpenURLPayload
                     log.info("Processing external-player-open-url:", payload)
                     if (!payload?.url) {

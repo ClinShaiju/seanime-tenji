@@ -10,11 +10,9 @@ import { Label } from "@/components/ui/label"
 import { IMAGES } from "@/constants/images"
 import { logger } from "@/lib/utils/logger"
 import { toast } from "@/lib/utils/toast"
-import { Ionicons } from "@expo/vector-icons"
-import * as Linking from "expo-linking"
 import { router } from "expo-router"
 import * as React from "react"
-import { Image, KeyboardAvoidingView, Pressable, Text, View } from "react-native"
+import { Image, KeyboardAvoidingView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 export default function Screen() {
@@ -176,15 +174,15 @@ export default function Screen() {
                     </CardFooter>
                 </Card>
 
-                <Pressable
-                    onPress={() => Linking.openURL("https://seanime.app/mobile-server")}
-                    className="mt-4 flex-row items-center justify-center gap-1.5 active:opacity-75"
-                >
-                    <Ionicons name="information-circle-outline" size={16} color="rgba(255,255,255,0.4)" />
-                    <Text className="text-white/40 text-xs font-medium underline">
-                        Run a Seanime Server on this phone
-                    </Text>
-                </Pressable>
+                {/*<Pressable*/}
+                {/*    onPress={() => Linking.openURL("https://seanime.app/mobile-server")}*/}
+                {/*    className="mt-4 flex-row items-center justify-center gap-1.5 active:opacity-75"*/}
+                {/*>*/}
+                {/*    <Ionicons name="information-circle-outline" size={16} color="rgba(255,255,255,0.4)" />*/}
+                {/*    <Text className="text-white/40 text-xs font-medium underline">*/}
+                {/*        Run a Seanime Server on this phone*/}
+                {/*    </Text>*/}
+                {/*</Pressable>*/}
             </SafeAreaView>
         </KeyboardAvoidingView>
     )

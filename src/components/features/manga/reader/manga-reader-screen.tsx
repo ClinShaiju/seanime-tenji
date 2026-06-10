@@ -37,7 +37,7 @@ import Slider from "@react-native-community/slider"
 import { FlashList, type FlashListRef, type ListRenderItemInfo, type ViewToken } from "@shopify/flash-list"
 import { Image } from "expo-image"
 import { LinearGradient } from "expo-linear-gradient"
-import { useRouter } from "expo-router"
+import { Stack, useRouter } from "expo-router"
 import * as ScreenOrientation from "expo-screen-orientation"
 import { Accelerometer } from "expo-sensors"
 import * as React from "react"
@@ -96,9 +96,8 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
 
     const { settings, setSetting, resetSettings, defaults } = useMangaReaderSettings(mediaId, isCompact)
     const { pageIndex: savedPageIndex, setPageIndex: setSavedPageIndex } = useMangaReaderPosition(mediaId, provider, chapterId)
-    // android long strip still needs server page shapes so row heights do not thrash after mount
     const isDoublePageOrLongStrip = settings.readingMode === MANGA_READING_MODE.DOUBLE_PAGE
-        || (Platform.OS === "android" && settings.readingMode === MANGA_READING_MODE.LONG_STRIP)
+        || settings.readingMode === MANGA_READING_MODE.LONG_STRIP
 
     const { data: pageContainer, isLoading: pageContainerLoading, isError: pageContainerError } = useGetMangaEntryPages({
         mediaId,
@@ -138,8 +137,10 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
         doublePage: isDoublePageOrLongStrip,
     })
 
-    const pages = React.useMemo(() => buildReaderPages(serverUrl, pageContainer, localPages, downloadedChapterInfo?.pageDimensions),
+    const rawPages = React.useMemo(() => buildReaderPages(serverUrl, pageContainer, localPages, downloadedChapterInfo?.pageDimensions),
         [downloadedChapterInfo?.pageDimensions, localPages, pageContainer, serverUrl])
+
+    const pages = rawPages
     const spreads = React.useMemo(() => buildReaderSpreads(pages, settings), [pages, settings])
 
     const [controlsVisible, setControlsVisible] = React.useState(true)
@@ -208,16 +209,12 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
         }
     }, [pages])
 
-    // android still virtualized even when page sizes are known
     const useFullLongStripZoom = settings.readingMode === MANGA_READING_MODE.LONG_STRIP
-        && Platform.OS === "ios"
         && !longStripLayoutProfile.hasMissingDimensions
         && !longStripLayoutProfile.hasVeryTallPages
-        && !longStripLayoutProfile.hasWideAspectRatioSpread
-    const virtualizedLongStripDrawDistance = React.useMemo(
-        () => Math.round(screenHeight * VIRTUALIZED_LONG_STRIP_DRAW_DISTANCE_MULTIPLIER),
-        [screenHeight],
-    )
+    const virtualizedLongStripDrawDistance = React.useMemo(() => Math.round(screenHeight * VIRTUALIZED_LONG_STRIP_DRAW_DISTANCE_MULTIPLIER),
+        [screenHeight])
+
     const longStripContentContainerStyle = React.useMemo(() => ({
         paddingTop: longStripTopInset,
         paddingBottom: longStripBottomInset,
@@ -634,11 +631,14 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
     return (
         <View className="flex-1 bg-[#080808]">
             <StatusBar hidden={!controlsVisible} animated barStyle="light-content" />
+            <Stack.Screen options={{ autoHideHomeIndicator: true }} />
 
             {showLoading ? (
                 <View className="flex-1 items-center justify-center gap-4">
                     <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
-                    <Text className="text-sm text-white/40">Loading chapter pages...</Text>
+                    <Text className="text-sm text-white/40">
+                        Loading chapter pages...
+                    </Text>
                 </View>
             ) : showPreparingSavedPosition ? (
                 <View className="flex-1 items-center justify-center gap-4 px-6">
@@ -666,7 +666,6 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
                     <View className="flex-1">
                         {settings.readingMode === MANGA_READING_MODE.LONG_STRIP ? (
                             useFullLongStripZoom ? (
-                                // full zoom keeps one continuous surface when the chapter shape is stable enough
                                 <MangaReaderZoomSurface
                                     scrollViewRef={longStripScrollRef}
                                     style={{ flex: 1 }}
@@ -729,7 +728,6 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
                                 />
                             )
                         ) : (
-                            // paged modes keep spreads fixed to the viewport so swipe distance stays consistent
                             <FlashList
                                 key={`list-horizontal-${settings.readingDirection}`}
                                 ref={horizontalListRef}

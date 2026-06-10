@@ -168,12 +168,24 @@ export function MangaReaderZoomSurface({
     const resetAndroidZoom = React.useCallback((animated: boolean = true) => {
         "worklet"
 
+        // console.log("[ZoomSurface] resetAndroidZoom start", {
+        //     animated,
+        //     scale: androidScale.value,
+        //     translateX: androidTranslateX.value,
+        //     translateY: androidTranslateY.value,
+        //     focalX: androidFocalX.value,
+        //     focalY: androidFocalY.value
+        // })
+
         if (animated) {
-            androidScale.value = withTiming(1, ZOOM_TIMING_CONFIG)
+            androidScale.value = withTiming(1, ZOOM_TIMING_CONFIG, (finished) => {
+                if (finished) {
+                    androidFocalX.value = 0
+                    androidFocalY.value = 0
+                }
+            })
             androidTranslateX.value = withTiming(0, ZOOM_TIMING_CONFIG)
             androidTranslateY.value = withTiming(0, ZOOM_TIMING_CONFIG)
-            androidFocalX.value = withTiming(0, ZOOM_TIMING_CONFIG)
-            androidFocalY.value = withTiming(0, ZOOM_TIMING_CONFIG)
         } else {
             androidScale.value = 1
             androidTranslateX.value = 0
@@ -217,7 +229,6 @@ export function MangaReaderZoomSurface({
             return
         }
 
-        // clamp after each gesture
         const rightLimit = (androidContainerWidth.value * (androidScale.value - 1)) / 2
         const leftLimit = -rightLimit
         const bottomLimit = (androidContainerHeight.value * (androidScale.value - 1)) / 2
@@ -228,16 +239,26 @@ export function MangaReaderZoomSurface({
         const nextTranslateX = clampZoomValue(totalTranslateX, leftLimit, rightLimit)
         const nextTranslateY = clampZoomValue(totalTranslateY, topLimit, bottomLimit)
 
+        // console.log("[ZoomSurface] clampAndroidZoomIntoView", {
+        //     scale: androidScale.value,
+        //     containerWidth: androidContainerWidth.value,
+        //     containerHeight: androidContainerHeight.value,
+        //     leftLimit,
+        //     rightLimit,
+        //     topLimit,
+        //     bottomLimit,
+        //     totalTranslateX,
+        //     totalTranslateY,
+        //     nextTranslateX,
+        //     nextTranslateY
+        // })
+
         if (animated) {
-            androidTranslateX.value = withTiming(nextTranslateX, ZOOM_TIMING_CONFIG)
-            androidTranslateY.value = withTiming(nextTranslateY, ZOOM_TIMING_CONFIG)
-            androidFocalX.value = withTiming(0, ZOOM_TIMING_CONFIG)
-            androidFocalY.value = withTiming(0, ZOOM_TIMING_CONFIG)
+            androidTranslateX.value = withTiming(nextTranslateX - androidFocalX.value * (1 - androidScale.value), ZOOM_TIMING_CONFIG)
+            androidTranslateY.value = withTiming(nextTranslateY - androidFocalY.value * (1 - androidScale.value), ZOOM_TIMING_CONFIG)
         } else {
-            androidTranslateX.value = nextTranslateX
-            androidTranslateY.value = nextTranslateY
-            androidFocalX.value = 0
-            androidFocalY.value = 0
+            androidTranslateX.value = nextTranslateX - androidFocalX.value * (1 - androidScale.value)
+            androidTranslateY.value = nextTranslateY - androidFocalY.value * (1 - androidScale.value)
         }
 
         runOnJS(reportZoomChange)(true)
@@ -495,6 +516,13 @@ export function MangaReaderZoomSurface({
             )) return
 
             if (androidScale.value > ZOOM_THRESHOLD) {
+                // console.log("[ZoomSurface] DoubleTap unzoom start", {
+                //     scale: androidScale.value,
+                //     translateX: androidTranslateX.value,
+                //     translateY: androidTranslateY.value,
+                //     focalX: androidFocalX.value,
+                //     focalY: androidFocalY.value
+                // })
                 resetAndroidZoom()
                 return
             }
@@ -593,6 +621,14 @@ export function MangaReaderZoomSurface({
             const nextFocalX = androidScrollOffsetX.value + event.focalX - androidContainerX.value - androidContainerWidth.value / 2
             const nextFocalY = androidScrollOffsetY.value + event.focalY - androidContainerY.value - androidContainerHeight.value / 2
 
+            // console.log("[ZoomSurface] Pinch onStart", {
+            //     focalX: event.focalX,
+            //     focalY: event.focalY,
+            //     translateX: androidTranslateX.value,
+            //     translateY: androidTranslateY.value,
+            //     scale: androidScale.value
+            // })
+
             androidSavedScale.value = androidScale.value
             androidSavedFocalX.value = nextFocalX
             androidSavedFocalY.value = nextFocalY
@@ -607,6 +643,20 @@ export function MangaReaderZoomSurface({
             runOnJS(reportZoomChange)(true)
         })
         .onUpdate((event) => {
+            if (event.numberOfPointers < 2) {
+                return
+            }
+
+            const deltaX = event.focalX - androidInitialFocalX.value
+            const deltaY = event.focalY - androidInitialFocalY.value
+
+            if (Math.abs(deltaX) > 25 || Math.abs(deltaY) > 25) {
+                return
+            }
+
+            androidInitialFocalX.value = event.focalX
+            androidInitialFocalY.value = event.focalY
+
             const nextScale = clampZoomValue(androidSavedScale.value * event.scale, 1, maxScale)
 
             if (androidSavedScale.value > ZOOM_THRESHOLD && event.scale < 1) {
@@ -630,12 +680,18 @@ export function MangaReaderZoomSurface({
             }
 
             androidScale.value = nextScale
-            androidTranslateX.value = androidSavedTranslateX.value + (event.focalX - androidInitialFocalX.value)
-            androidTranslateY.value = androidSavedTranslateY.value + (event.focalY - androidInitialFocalY.value)
+            androidTranslateX.value = androidTranslateX.value + deltaX
+            androidTranslateY.value = androidTranslateY.value + deltaY
             androidFocalX.value = androidSavedFocalX.value
             androidFocalY.value = androidSavedFocalY.value
         })
         .onEnd(() => {
+            // console.log("[ZoomSurface] Pinch onEnd", {
+            //     translateX: androidTranslateX.value,
+            //     translateY: androidTranslateY.value,
+            //     scale: androidScale.value
+            // })
+
             androidTranslateX.value += androidFocalX.value * (1 - androidScale.value)
             androidTranslateY.value += androidFocalY.value * (1 - androidScale.value)
             androidFocalX.value = 0

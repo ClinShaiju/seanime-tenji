@@ -153,6 +153,7 @@ export default function MangaLibraryScreen() {
                         />
                     ) : (
                         <Animated.FlatList
+                            key={isConnected ? "online" : "offline"}
                             data={isConnected ? shelfSections : []}
                             renderItem={renderShelfSection}
                             keyExtractor={(item) => item.key}
