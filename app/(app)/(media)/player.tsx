@@ -301,15 +301,23 @@ function PlayerScreenInner() {
         seekBarWidthValue.set(width)
     }
 
-    const scheduleSeekingDisplayUpdate = (value: number | null) => {
+    const scheduleSeekingDisplayUpdate = React.useCallback((value: number | null) => {
         pendingSeekingDisplayRef.current = value
+        if (value === null) {
+            if (seekDisplayFrameRef.current !== null) {
+                cancelAnimationFrame(seekDisplayFrameRef.current)
+                seekDisplayFrameRef.current = null
+            }
+            setSeekingDisplay(null)
+            return
+        }
         if (seekDisplayFrameRef.current !== null) return
         seekDisplayFrameRef.current = requestAnimationFrame(() => {
             seekDisplayFrameRef.current = null
             const nextValue = pendingSeekingDisplayRef.current ?? null
             setSeekingDisplay(current => current === nextValue ? current : nextValue)
         })
-    }
+    }, [])
 
     // cleanup rAF
     React.useEffect(() => {

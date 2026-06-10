@@ -95,6 +95,58 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
         setCenterTapFeedback, centerTapHideTimerRef,
     } = params
 
+    const latestRef = React.useRef({
+        screenWidth,
+        screenHeight,
+        fillZoomScale,
+        clearHideTimer,
+        scheduleHide,
+        showControls,
+        toggleControls,
+        closeSettings,
+        setControlsVisible,
+        seekTo,
+        seekRelative,
+        togglePlayPause,
+        setPlayerSpeed,
+        applyVideoZoom,
+        applyZoomMode,
+        showDoubleTapIndicator,
+        scheduleSwipeSeekingUpdate,
+        scheduleSideAdjustHide,
+        scheduleSideAdjustUpdate,
+        setIsFastForwarding,
+        setCenterTapFeedback,
+        brightnessLevelRef,
+        volumeLevelRef,
+    })
+
+    latestRef.current = {
+        screenWidth,
+        screenHeight,
+        fillZoomScale,
+        clearHideTimer,
+        scheduleHide,
+        showControls,
+        toggleControls,
+        closeSettings,
+        setControlsVisible,
+        seekTo,
+        seekRelative,
+        togglePlayPause,
+        setPlayerSpeed,
+        applyVideoZoom,
+        applyZoomMode,
+        showDoubleTapIndicator,
+        scheduleSwipeSeekingUpdate,
+        scheduleSideAdjustHide,
+        scheduleSideAdjustUpdate,
+        setIsFastForwarding,
+        setCenterTapFeedback,
+        brightnessLevelRef,
+        volumeLevelRef,
+    }
+
     const longPressActiveRef = React.useRef(false)
     const tapStartXRef = React.useRef<number | null>(null)
     const pendingSideTapRef = React.useRef<{
@@ -108,16 +160,17 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
         until: number
     } | null>(null)
 
-    // stable action callbacks (read from gRef, minimal deps)
 
     const flashCenterTapFeedback = React.useCallback((nextPaused: boolean) => {
         if (centerTapHideTimerRef.current) clearTimeout(centerTapHideTimerRef.current)
+        const { setCenterTapFeedback } = latestRef.current
         setCenterTapFeedback(nextPaused ? "pause" : "play")
         centerTapHideTimerRef.current = setTimeout(() => {
-            setCenterTapFeedback(null)
+            const { setCenterTapFeedback: innerSet } = latestRef.current
+            innerSet(null)
             centerTapHideTimerRef.current = null
         }, CENTER_TAP_FEEDBACK_HIDE_DELAY)
-    }, [centerTapHideTimerRef, setCenterTapFeedback])
+    }, [centerTapHideTimerRef])
 
     const clearPendingSideTap = React.useCallback(() => {
         const pendingSideTap = pendingSideTapRef.current
@@ -134,6 +187,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
     React.useEffect(() => clearPendingSideTap, [clearPendingSideTap])
 
     const applyQueuedSideTap = React.useCallback((previousControlsVisible: boolean) => {
+        const { clearHideTimer, setControlsVisible, scheduleHide } = latestRef.current
         clearHideTimer()
         if (previousControlsVisible) {
             setControlsVisible(false)
@@ -144,7 +198,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
         if (!gRef.current.paused) {
             scheduleHide()
         }
-    }, [clearHideTimer, gRef, scheduleHide, setControlsVisible])
+    }, [gRef])
 
     const handleDoubleTapSeekStart = React.useCallback((side: "left" | "right") => {
         const pendingSideTap = pendingSideTapRef.current
@@ -160,6 +214,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
     const handleSingleTap = React.useCallback(() => {
         const g = gRef.current
         if (g.isPiPActive) return
+        const { closeSettings, showControls, toggleControls } = latestRef.current
         if (g.panel) {
             closeSettings()
             return
@@ -169,7 +224,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
             return
         }
         toggleControls()
-    }, [closeSettings, gRef, showControls, toggleControls])
+    }, [gRef])
 
     const handleDoubleTapSeek = React.useCallback((side: "left" | "right") => {
         const g = gRef.current
@@ -182,6 +237,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
         }
 
         const amount = g.doubleTapSeekSec
+        const { seekRelative, showDoubleTapIndicator, scheduleHide } = latestRef.current
         if (side === "left") {
             seekRelative(-amount, true)
             showDoubleTapIndicator("left", amount)
@@ -190,13 +246,14 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
             showDoubleTapIndicator("right", amount)
         }
         scheduleHide()
-    }, [clearPendingSideTap, gRef, scheduleHide, seekRelative, showDoubleTapIndicator])
+    }, [clearPendingSideTap, gRef])
 
     const handleTapGestureEnd = React.useCallback((tapEndX: number) => {
             const tapX = tapStartXRef.current ?? tapEndX
             tapStartXRef.current = null
 
             const g = gRef.current
+            const { screenWidth, setControlsVisible, togglePlayPause, clearHideTimer, closeSettings, showControls } = latestRef.current
             const tapZone = getTapZone(screenWidth, tapX)
             const seekZone = getDoubleTapSeekZone(screenWidth, tapX)
             const suppressedEdgeTap = suppressedEdgeTapRef.current
@@ -264,8 +321,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
             }, DOUBLE_TAP_THRESHOLD)
             pendingSideTapRef.current = nextPendingSideTap
         },
-        [applyQueuedSideTap, clearHideTimer, clearPendingSideTap, closeSettings, flashCenterTapFeedback, gRef, handleDoubleTapSeek, handleSingleTap,
-            screenWidth, setControlsVisible, showControls, togglePlayPause])
+        [applyQueuedSideTap, clearPendingSideTap, flashCenterTapFeedback, gRef, handleDoubleTapSeek, handleSingleTap])
 
     const handleLongPressStart = React.useCallback(() => {
             const g = gRef.current
@@ -274,22 +330,25 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
             longPressActiveRef.current = true
             savedSpeedRef.current = g.speed
             controlsVisibleBeforeLongPressRef.current = g.controlsVisible
+
+            const { setPlayerSpeed, setIsFastForwarding, setControlsVisible, clearHideTimer } = latestRef.current
             setPlayerSpeed(g.longPressFastForwardSpeed)
             setIsFastForwarding(true)
             setControlsVisible(false)
             clearHideTimer()
         },
-        [clearHideTimer, clearPendingSideTap, controlsVisibleBeforeLongPressRef, gRef, savedSpeedRef, setControlsVisible, setIsFastForwarding,
-            setPlayerSpeed])
+        [clearPendingSideTap, gRef, savedSpeedRef, controlsVisibleBeforeLongPressRef])
 
     const stopLongPressFastForward = React.useCallback(() => {
         if (!longPressActiveRef.current) return
         longPressActiveRef.current = false
+
+        const { setPlayerSpeed, setIsFastForwarding, showControls, scheduleHide } = latestRef.current
         setPlayerSpeed(savedSpeedRef.current)
         setIsFastForwarding(false)
         if (controlsVisibleBeforeLongPressRef.current) showControls()
         else scheduleHide()
-    }, [controlsVisibleBeforeLongPressRef, savedSpeedRef, scheduleHide, setIsFastForwarding, setPlayerSpeed, showControls])
+    }, [controlsVisibleBeforeLongPressRef, savedSpeedRef])
 
     // compose gesture object
 
@@ -327,6 +386,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
                     return
                 }
                 const x = getGestureTouchX(event)
+                const { screenWidth } = latestRef.current
                 if (x === null || getDoubleTapSeekZone(screenWidth, x) !== "left") {
                     manager.fail()
                     return
@@ -350,6 +410,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
                     return
                 }
                 const x = getGestureTouchX(event)
+                const { screenWidth } = latestRef.current
                 if (x === null || getDoubleTapSeekZone(screenWidth, x) !== "right") {
                     manager.fail()
                     return
@@ -381,6 +442,9 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
                 clearPendingSideTap()
                 if (gRef.current.isPiPActive) {
                     swipeSeekingRef.current = null
+                    const { scheduleSwipeSeekingUpdate } = latestRef.current
+                    scheduleSwipeSeekingUpdate(null)
+                    swipeActivatedRef.current = false
                     panGestureModeRef.current = null
                     sideAdjustKindRef.current = null
                     return
@@ -398,6 +462,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
                     return
                 }
 
+                const { screenWidth, brightnessLevelRef, volumeLevelRef } = latestRef.current
                 const leftBoundary = screenWidth * SIDE_ADJUST_ZONE_RATIO
                 const rightBoundary = screenWidth * (1 - SIDE_ADJUST_ZONE_RATIO)
 
@@ -441,11 +506,13 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
                     const newTime = Math.max(0, Math.min(gRef.current.duration, swipeStartTimeRef.current + dx * SWIPE_SEEK_SENSITIVITY))
                     const swipeState = { startTime: swipeStartTimeRef.current, currentTime: newTime }
                     swipeSeekingRef.current = swipeState
+                    const { scheduleSwipeSeekingUpdate } = latestRef.current
                     scheduleSwipeSeekingUpdate(swipeState)
                     return
                 }
 
                 if (panGestureModeRef.current === "side-adjust" && sideAdjustKindRef.current) {
+                    const { screenHeight, scheduleSideAdjustUpdate } = latestRef.current
                     const nextValue = clamp(
                         sideAdjustStartValueRef.current - (dy / Math.max(screenHeight * 0.65, 1)),
                         0, 1,
@@ -454,6 +521,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
                 }
             })
             .onEnd(() => {
+                const { seekTo, scheduleSideAdjustHide, scheduleSwipeSeekingUpdate, scheduleHide } = latestRef.current
                 if (gRef.current.isPiPActive) {
                     swipeSeekingRef.current = null
                     scheduleSwipeSeekingUpdate(null)
@@ -480,6 +548,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
                 scheduleHide()
             })
             .onFinalize(() => {
+                const { scheduleSideAdjustHide, scheduleSwipeSeekingUpdate } = latestRef.current
                 swipeSeekingRef.current = null
                 scheduleSwipeSeekingUpdate(null)
                 swipeActivatedRef.current = false
@@ -497,17 +566,20 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
             .onBegin(() => {
                 clearPendingSideTap()
                 if (gRef.current.isPiPActive) return
+                const { clearHideTimer } = latestRef.current
                 clearHideTimer()
                 pinchStartScaleRef.current = zoomScaleRef.current
             })
             .onUpdate((e) => {
                 if (gRef.current.isPiPActive) return
+                const { fillZoomScale, applyVideoZoom } = latestRef.current
                 const maxScale = Math.max(1, fillZoomScale)
                 const nextScale = pinchStartScaleRef.current * e.scale
                 applyVideoZoom(Math.max(1, Math.min(maxScale, nextScale)))
             })
             .onEnd((e) => {
                 if (gRef.current.isPiPActive) return
+                const { fillZoomScale, applyVideoZoom, applyZoomMode } = latestRef.current
                 const maxScale = Math.max(1, fillZoomScale)
                 const finalScale = Math.max(1, Math.min(maxScale, pinchStartScaleRef.current * e.scale))
                 applyVideoZoom(finalScale)
@@ -518,19 +590,7 @@ export function usePlayerGestures(params: UsePlayerGesturesParams) {
             pinchGesture,
             Gesture.Race(longPressGesture, panGesture, Gesture.Simultaneous(leftDoubleTap, rightDoubleTap, tapGesture)),
         )
-    }, [
-        screenWidth, screenHeight, fillZoomScale,
-        clearPendingSideTap, handleDoubleTapSeek, handleDoubleTapSeekStart, handleTapGestureEnd,
-        handleLongPressStart, stopLongPressFastForward,
-        clearHideTimer, scheduleHide, seekTo,
-        applyVideoZoom, applyZoomMode, zoomScaleRef, pinchStartScaleRef,
-        scheduleSideAdjustHide, scheduleSideAdjustUpdate, scheduleSwipeSeekingUpdate,
-        gRef,
-        swipeStartTimeRef, swipeActivatedRef, swipeStartXRef, swipeSeekingRef, panGestureModeRef,
-        brightnessLevelRef, volumeLevelRef,
-        sideAdjustKindRef, sideAdjustStartYRef, sideAdjustStartValueRef, sideAdjustActivatedRef,
-        setTapStartX,
-    ])
+    }, [])
 
     return { screenGesture, handleSingleTap, flashCenterTapFeedback }
 }

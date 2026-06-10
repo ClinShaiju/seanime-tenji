@@ -12,6 +12,15 @@ export function useSwipeSeek() {
 
     const scheduleSwipeSeekingUpdate = React.useCallback((value: { startTime: number; currentTime: number } | null) => {
         pendingSwipeSeekingRef.current = value
+        if (value === null) {
+            if (swipeSeekingFrameRef.current !== null) {
+                cancelAnimationFrame(swipeSeekingFrameRef.current)
+                swipeSeekingFrameRef.current = null
+            }
+            setSwipeSeeking(null)
+            return
+        }
+
         if (swipeSeekingFrameRef.current !== null) return
 
         swipeSeekingFrameRef.current = requestAnimationFrame(() => {
