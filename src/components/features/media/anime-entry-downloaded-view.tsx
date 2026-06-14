@@ -1,5 +1,4 @@
 import { Anime_Entry, Anime_Episode } from "@/api/generated/types"
-import { useServerUrl } from "@/atoms/server.atoms"
 import { EpisodeListItem } from "@/components/features/anime/episode-list-item"
 import { EPISODE_PAGE_SIZE, EpisodePageSelector } from "@/components/shared/episode-page-selector"
 import { LuffyError } from "@/components/shared/luffy-error"
@@ -11,19 +10,15 @@ import { usePaginatedItems } from "@/hooks/use-paginated-items"
 import {
     type DownloadedEpisode,
     formatBytes,
-    isLocalServer,
-    syncLocalServerFilesToDownloads,
     useCompletedEpisodesForMedia,
     useDeleteAllAnimeDownloadsForMedia,
     useDeleteAnimeDownload,
     useDownloadedEpisodesForMedia,
-    useIsLocalServer,
 } from "@/lib/downloads"
-import { useIsServerConnected } from "@/lib/offline"
-import { currentPlaybackSourceAtom, getLocalEpisodePlaybackSource, playerErrorAtom, playerLoadingMessageAtom, playerOpenAtom } from "@/lib/player"
-import { toast } from "@/lib/utils/toast"
+import { currentPlaybackSourceAtom, playerErrorAtom, playerLoadingMessageAtom, playerOpenAtom } from "@/lib/player"
+import type { MobilePlaybackSource } from "@/lib/player/types"
 import { Ionicons } from "@expo/vector-icons"
-import { useFocusEffect, useRouter } from "expo-router"
+import { useRouter } from "expo-router"
 import { useAtom } from "jotai"
 import * as React from "react"
 import { Alert, Pressable, Text, useWindowDimensions, View } from "react-native"
@@ -34,19 +29,9 @@ type AnimeEntryDownloadedViewProps = {
 
 export function AnimeEntryDownloadedView({ entry }: AnimeEntryDownloadedViewProps) {
     const mediaId = entry.mediaId
-    const serverUrl = useServerUrl()
-    const isLocal = useIsLocalServer()
     const allEpisodes = useDownloadedEpisodesForMedia(mediaId)
     const completedEpisodes = useCompletedEpisodesForMedia(mediaId)
     const { width: windowWidth } = useWindowDimensions()
-
-    useFocusEffect(
-        React.useCallback(() => {
-            if (serverUrl) {
-                void syncLocalServerFilesToDownloads(serverUrl)
-            }
-        }, [serverUrl]),
-    )
     const downloadedThumbnailWidth = React.useMemo(
         () => Math.min(Math.max(windowWidth * 0.4, 128), 160),
         [windowWidth],
@@ -90,17 +75,13 @@ export function AnimeEntryDownloadedView({ entry }: AnimeEntryDownloadedViewProp
         )
     }
 
-    const hasDeletableDownloads = React.useMemo(() => {
-        return completedEpisodes.some(ep => ep.localFilePath && !ep.isLocalServerFile)
-    }, [completedEpisodes])
-
     return (
         <View className="px-4 pt-4 gap-4">
             <View className="flex-row items-center justify-between px-1">
                 <Text className="text-sm text-white/40">
                     {completedEpisodes.length} episode{completedEpisodes.length !== 1 ? "s" : ""} · {formatBytes(totalSize)}
                 </Text>
-                {completedEpisodes.length > 0 && !isLocal && hasDeletableDownloads && (
+                {completedEpisodes.length > 0 && (
                     <Pressable
                         onPress={() => {
                             Alert.alert(
@@ -326,9 +307,6 @@ function DownloadedEpisodeListItem({
     onDelete,
 }: DownloadedEpisodeRowProps) {
     const router = useRouter()
-    const isLocal = useIsLocalServer()
-    const serverUrl = useServerUrl()
-    const isConnected = useIsServerConnected()
 
     const [, setSource] = useAtom(currentPlaybackSourceAtom)
     const [, setPlayerOpen] = useAtom(playerOpenAtom)
@@ -349,23 +327,20 @@ function DownloadedEpisodeListItem({
     const handlePlay = React.useCallback(() => {
         if (!isCompleted || !entry.media) return
 
-        const listEpisodeVal = matchingEpisode ?? createDownloadedAnimeEpisode(episode)
-        const isLocalVal = serverUrl ? isLocalServer(serverUrl) : false
-        const effectiveServerUrl = (isConnected || isLocalVal) ? serverUrl : null
-
-        const source = getLocalEpisodePlaybackSource({
+        const source: MobilePlaybackSource = {
+            id: `downloaded-${Date.now()}`,
+            streamKind: "file",
+            url: episode.localFilePath,
             mediaId: entry.media.id,
-            episode: listEpisodeVal,
+            episodeNumber: episode.episodeNumber,
             media: entry.media,
+            episode: matchingEpisode ?? undefined,
             entryListData: entry.listData ?? undefined,
-            episodes: entry.episodes ?? undefined,
-            serverUrl: effectiveServerUrl,
+            localFile: matchingEpisode?.localFile,
             entryView: "downloaded",
-        })
-
-        if (!source) {
-            toast.error("Unable to start playback")
-            return
+            nextEpisodeAction: "local-file",
+            continuityKind: "mediastream",
+            episodes: entry.episodes ?? undefined,
         }
 
         setError(null)
@@ -373,21 +348,18 @@ function DownloadedEpisodeListItem({
         setSource(source)
         setPlayerOpen(true)
         router.push("/(app)/(media)/player" as never)
-    }, [isCompleted, entry, episode, matchingEpisode, router, setSource, setPlayerOpen, setError, setLoadingMessage, serverUrl, isConnected])
+    }, [isCompleted, entry, episode, matchingEpisode, router, setSource, setPlayerOpen, setError, setLoadingMessage])
 
     const handleLongPress = React.useCallback(() => {
-        const isDeletable = episode.localFilePath && !episode.isLocalServerFile
         Alert.alert(
             episode.displayTitle,
             `${formatBytes(episode.fileSize)}`,
-            (isLocal || !isDeletable)
-                ? [{ text: "Close", style: "cancel" }]
-                : [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Delete", style: "destructive", onPress: onDelete },
-                ],
+            [
+                { text: "Cancel", style: "cancel" },
+                { text: "Delete", style: "destructive", onPress: onDelete },
+            ],
         )
-    }, [episode, onDelete, isLocal])
+    }, [episode, onDelete])
 
     const handleDeletePress = React.useCallback(() => {
         Alert.alert("Delete download?", "This episode will be removed from your device.", [
@@ -412,14 +384,14 @@ function DownloadedEpisodeListItem({
             watchedProgress={entry.listData?.progress ?? 0}
             hideMissingDescription
             descriptionOverride={isFailed ? null : undefined}
-            footnoteText={episode.isLocalServerFile ? "" : isCompleted ? formatBytes(episode.fileSize) : (episode.errorMessage || "Download failed")}
+            footnoteText={isCompleted ? formatBytes(episode.fileSize) : (episode.errorMessage || "Download failed")}
             footnoteClassName={isCompleted ? "text-white/35" : "text-red-400"}
             thumbnailOverlay={isFailed ? (
                 <View className="absolute inset-0 items-center justify-center bg-black/45">
                     <Ionicons name="warning-outline" size={24} color="rgba(239,68,68,0.9)" />
                 </View>
             ) : undefined}
-            action={(isLocal || (episode.localFilePath && episode.isLocalServerFile)) ? undefined : (
+            action={(
                 <Pressable
                     className="h-8 w-8 items-center justify-center rounded-full"
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

@@ -32,7 +32,6 @@ export {
     retryAnimeDownload,
     retryFailedAnimeDownloads,
     isLocalServer,
-    syncLocalServerFilesToDownloads,
 } from "./download-manager"
 
 export {

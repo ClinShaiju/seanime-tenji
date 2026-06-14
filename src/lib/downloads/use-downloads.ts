@@ -27,11 +27,13 @@ import {
     getAnimeTotalDownloadSize,
     getCompletedEpisodesForMedia,
     getDownloadedEpisode,
+    getDownloadedEpisodeCount,
     getDownloadedEpisodesForMedia,
     getDownloadEpisodeId,
     getDownloadRevision,
+    getEpisodeDownloadStatus,
     getFailedDownloads,
-    readGlobalIndex,
+    isEpisodeDownloaded,
     subscribeToDownloadChanges,
 } from "@/lib/downloads/download-store"
 import { toast } from "@/lib/utils/toast"
@@ -51,16 +53,12 @@ export function useIsEpisodeDownloaded(
     "use no memo"
 
     const rev = useDownloadRevision()
-    const isLocal = useIsLocalServer()
     return useMemo(() => {
         void rev
         if (!mediaId || !episode) return false
         const episodeId = getDownloadEpisodeId(episode.aniDBEpisode, episode.type, episode.episodeNumber, episode.localFile?.path)
-        const ep = getDownloadedEpisode(mediaId, episodeId)
-        if (!ep) return false
-        if (ep.isLocalServerFile && !isLocal) return false
-        return ep.status === "completed"
-    }, [mediaId, episode, rev, isLocal])
+        return isEpisodeDownloaded(mediaId, episodeId)
+    }, [mediaId, episode, rev])
 }
 
 /**
@@ -73,16 +71,12 @@ export function useEpisodeDownloadStatus(
     "use no memo"
 
     const rev = useDownloadRevision()
-    const isLocal = useIsLocalServer()
     return useMemo(() => {
         void rev
         if (!mediaId || !episode) return null
         const episodeId = getDownloadEpisodeId(episode.aniDBEpisode, episode.type, episode.episodeNumber, episode.localFile?.path)
-        const ep = getDownloadedEpisode(mediaId, episodeId)
-        if (!ep) return null
-        if (ep.isLocalServerFile && !isLocal) return null
-        return ep.status
-    }, [mediaId, episode, rev, isLocal])
+        return getEpisodeDownloadStatus(mediaId, episodeId)
+    }, [mediaId, episode, rev])
 }
 
 /**
@@ -95,15 +89,12 @@ export function useEpisodeDownloadInfo(
     "use no memo"
 
     const rev = useDownloadRevision()
-    const isLocal = useIsLocalServer()
     return useMemo(() => {
         void rev
         if (!mediaId || !episode) return undefined
         const episodeId = getDownloadEpisodeId(episode.aniDBEpisode, episode.type, episode.episodeNumber, episode.localFile?.path)
-        const ep = getDownloadedEpisode(mediaId, episodeId)
-        if (ep?.isLocalServerFile && !isLocal) return undefined
-        return ep
-    }, [mediaId, episode, rev, isLocal])
+        return getDownloadedEpisode(mediaId, episodeId)
+    }, [mediaId, episode, rev])
 }
 
 /**
@@ -133,16 +124,11 @@ export function useDownloadedEpisodesForMedia(mediaId: number | undefined): Down
     "use no memo"
 
     const rev = useDownloadRevision()
-    const isLocal = useIsLocalServer()
     return useMemo(() => {
         void rev
         if (!mediaId) return []
-        const eps = getDownloadedEpisodesForMedia(mediaId)
-        if (!isLocal) {
-            return eps.filter(ep => !ep.isLocalServerFile)
-        }
-        return eps
-    }, [mediaId, rev, isLocal])
+        return getDownloadedEpisodesForMedia(mediaId)
+    }, [mediaId, rev])
 }
 
 /**
@@ -152,16 +138,11 @@ export function useCompletedEpisodesForMedia(mediaId: number | undefined): Downl
     "use no memo"
 
     const rev = useDownloadRevision()
-    const isLocal = useIsLocalServer()
     return useMemo(() => {
         void rev
         if (!mediaId) return []
-        const eps = getCompletedEpisodesForMedia(mediaId)
-        if (!isLocal) {
-            return eps.filter(ep => !ep.isLocalServerFile)
-        }
-        return eps
-    }, [mediaId, rev, isLocal])
+        return getCompletedEpisodesForMedia(mediaId)
+    }, [mediaId, rev])
 }
 
 export function useActiveAnimeDownloads(): DownloadedEpisode[] {
@@ -193,21 +174,10 @@ export function useAllDownloadedAnime(): DownloadedAnimeInfo[] {
     "use no memo"
 
     const rev = useDownloadRevision()
-    const isLocal = useIsLocalServer()
     return useMemo(() => {
         void rev
-        const all = getAllDownloadedAnime()
-        if (!isLocal) {
-            return all.map(info => {
-                const completedCount = getCompletedEpisodesForMedia(info.mediaId).filter(ep => !ep.isLocalServerFile).length
-                return {
-                    ...info,
-                    downloadedCount: completedCount,
-                }
-            }).filter(info => info.downloadedCount > 0)
-        }
-        return all
-    }, [rev, isLocal])
+        return getAllDownloadedAnime()
+    }, [rev])
 }
 
 /**
@@ -217,23 +187,11 @@ export function useAnimeTotalDownloadSize(): { bytes: number; formatted: string 
     "use no memo"
 
     const rev = useDownloadRevision()
-    const isLocal = useIsLocalServer()
     return useMemo(() => {
         void rev
-        let bytes = 0
-        if (!isLocal) {
-            const mediaIds = readGlobalIndex()
-            for (const mediaId of mediaIds) {
-                const eps = getCompletedEpisodesForMedia(mediaId).filter(ep => !ep.isLocalServerFile)
-                for (const ep of eps) {
-                    bytes += ep.fileSize
-                }
-            }
-        } else {
-            bytes = getAnimeTotalDownloadSize()
-        }
+        const bytes = getAnimeTotalDownloadSize()
         return { bytes, formatted: formatBytes(bytes) }
-    }, [rev, isLocal])
+    }, [rev])
 }
 
 /**
@@ -254,21 +212,10 @@ export function useDownloadedEpisodeCount(): number {
     "use no memo"
 
     const rev = useDownloadRevision()
-    const isLocal = useIsLocalServer()
     return useMemo(() => {
         void rev
-        const mediaIds = readGlobalIndex()
-        let count = 0
-        for (const id of mediaIds) {
-            const eps = getCompletedEpisodesForMedia(id)
-            if (!isLocal) {
-                count += eps.filter(ep => !ep.isLocalServerFile).length
-            } else {
-                count += eps.length
-            }
-        }
-        return count
-    }, [rev, isLocal])
+        return getDownloadedEpisodeCount()
+    }, [rev])
 }
 
 ////////////////////////// Action hooks

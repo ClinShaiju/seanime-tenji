@@ -1,12 +1,10 @@
 import { useAnilistListAnime } from "@/api/hooks/anilist.hooks"
 import { useGetLibraryCollection } from "@/api/hooks/anime_collection.hooks"
 import { useAnimeEntryManualMatch } from "@/api/hooks/anime_entries.hooks"
-import { useServerUrl } from "@/atoms/server.atoms"
 import { ProfileSubpageHeader } from "@/components/features/profile/profile-menu"
 import { SeaImage } from "@/components/shared/sea-image"
 import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
-import { syncLocalServerFilesToDownloads } from "@/lib/downloads/download-manager"
 import { useIsServerConnected } from "@/lib/offline"
 import { Ionicons } from "@expo/vector-icons"
 import { BottomSheetTextInput } from "@gorhom/bottom-sheet"
@@ -23,7 +21,6 @@ type UnmatchedGroup = {
 export default function UnmatchedScreen() {
     const insets = useSafeAreaInsets()
     const isConnected = useIsServerConnected()
-    const serverUrl = useServerUrl()
 
     useIOSScrollRefreshRateWorkaround()
 
@@ -73,19 +70,12 @@ export default function UnmatchedScreen() {
                                 mediaId,
                                 paths: group.localFiles!.map(f => f.path),
                             },
-                            {
-                                onSuccess: () => {
-                                    if (serverUrl) {
-                                        void syncLocalServerFilesToDownloads(serverUrl)
-                                    }
-                                },
-                            },
                         )
                     },
                 },
             ],
         )
-    }, [manualMatch, serverUrl])
+    }, [manualMatch])
 
     const openManualSearch = React.useCallback((group: UnmatchedGroup) => {
         setSelectedGroup(group)

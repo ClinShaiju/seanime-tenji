@@ -22,7 +22,6 @@ export type DownloadedEpisode = {
     startedAt: number
     completedAt?: number
     errorMessage?: string
-    isLocalServerFile?: boolean
 }
 
 export type DownloadedAnimeInfo = {
@@ -67,6 +66,12 @@ function animeInfoKey(mediaId: number): string {
 }
 
 const GLOBAL_INDEX_KEY = "global-index"
+const STORE_SCHEMA_VERSION_KEY = "__schema-version__"
+const CURRENT_STORE_SCHEMA_VERSION = 1
+
+type LegacyDownloadedEpisode = DownloadedEpisode & {
+    isLocalServerFile?: boolean
+}
 
 /**
  * Resolve a stored localFilePath to the current app container path.
@@ -99,7 +104,7 @@ function writeEpisodeIndex(mediaId: number, episodeIds: string[]): void {
     store.set(mediaIndexKey(mediaId), JSON.stringify(episodeIds))
 }
 
-export function readGlobalIndex(): number[] {
+function readGlobalIndex(): number[] {
     const raw = store.getString(GLOBAL_INDEX_KEY)
     if (!raw) return []
     try {
@@ -113,6 +118,76 @@ export function readGlobalIndex(): number[] {
 function writeGlobalIndex(ids: number[]): void {
     store.set(GLOBAL_INDEX_KEY, JSON.stringify(ids))
 }
+
+/**
+ * Undoes previous handling of local server downloads
+ */
+function migrateDownloadStore(): void {
+    if ((store.getNumber(STORE_SCHEMA_VERSION_KEY) ?? 0) >= CURRENT_STORE_SCHEMA_VERSION) return
+
+    const retainedMediaIds: number[] = []
+
+    for (const mediaId of readGlobalIndex()) {
+        const retainedEpisodeIds: string[] = []
+        let completedCount = 0
+
+        for (const episodeId of readEpisodeIndex(mediaId)) {
+            const key = episodeKey(mediaId, episodeId)
+            const raw = store.getString(key)
+            if (!raw) {
+                retainedEpisodeIds.push(episodeId)
+                continue
+            }
+
+            try {
+                const episode = JSON.parse(raw) as LegacyDownloadedEpisode
+                if (episode.isLocalServerFile) {
+                    store.remove(key)
+                    continue
+                }
+
+                if ("isLocalServerFile" in episode) {
+                    delete episode.isLocalServerFile
+                    store.set(key, JSON.stringify(episode))
+                }
+
+                retainedEpisodeIds.push(episodeId)
+                if (episode.status === "completed") {
+                    completedCount++
+                }
+            }
+            catch {
+                retainedEpisodeIds.push(episodeId)
+            }
+        }
+
+        if (retainedEpisodeIds.length === 0) {
+            store.remove(mediaIndexKey(mediaId))
+            store.remove(animeInfoKey(mediaId))
+            removeDownloadEntrySnapshot("anime", mediaId)
+            continue
+        }
+
+        writeEpisodeIndex(mediaId, retainedEpisodeIds)
+        retainedMediaIds.push(mediaId)
+
+        const animeInfoRaw = store.getString(animeInfoKey(mediaId))
+        if (animeInfoRaw) {
+            try {
+                const animeInfo = JSON.parse(animeInfoRaw) as DownloadedAnimeInfo
+                animeInfo.downloadedCount = completedCount
+                store.set(animeInfoKey(mediaId), JSON.stringify(animeInfo))
+            }
+            catch {
+            }
+        }
+    }
+
+    writeGlobalIndex(retainedMediaIds)
+    store.set(STORE_SCHEMA_VERSION_KEY, CURRENT_STORE_SCHEMA_VERSION)
+}
+
+migrateDownloadStore()
 
 ////////////////////////// Revision counter for reactive updates
 
@@ -408,7 +483,7 @@ export function getDownloadedEpisodeCount(): number {
     return count
 }
 
-export function updateAnimeInfoDownloadCount(mediaId: number): void {
+function updateAnimeInfoDownloadCount(mediaId: number): void {
     const info = getAnimeInfo(mediaId)
     if (!info) return
     info.downloadedCount = getCompletedEpisodesForMedia(mediaId).length

@@ -1,6 +1,4 @@
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
-import { useServerUrl } from "@/atoms/server.atoms"
-import { syncLocalServerFilesToDownloads } from "@/lib/downloads/download-manager"
 import { logger } from "@/lib/utils/logger"
 import { toast } from "@/lib/utils/toast"
 import { useQueryClient } from "@tanstack/react-query"
@@ -131,7 +129,6 @@ function parseWebsocketServerEvent(data: unknown): WebsocketServerEvent | null {
 
 export function useWebsocketEventRouter(socket: WebSocket | null) {
     const queryClient = useQueryClient()
-    const serverUrl = useServerUrl()
 
     React.useEffect(() => {
         if (!socket) {
@@ -167,9 +164,6 @@ export function useWebsocketEventRouter(socket: WebSocket | null) {
                     return
                 case WEBSOCKET_EVENTS.RefreshedAnilistAnimeCollection:
                     await invalidateQueryKeys(queryClient, animeCollectionRefreshKeys)
-                    if (serverUrl) {
-                        syncLocalServerFilesToDownloads(serverUrl)
-                    }
                     return
                 case WEBSOCKET_EVENTS.RefreshedAnilistMangaCollection:
                     await invalidateQueryKeys(queryClient, mangaCollectionRefreshKeys)
@@ -188,9 +182,6 @@ export function useWebsocketEventRouter(socket: WebSocket | null) {
                 case WEBSOCKET_EVENTS.LibraryWatcherFileAdded:
                 case WEBSOCKET_EVENTS.LibraryWatcherFileRemoved:
                     await invalidateQueryKeys(queryClient, libraryRefreshKeys)
-                    if (serverUrl) {
-                        syncLocalServerFilesToDownloads(serverUrl)
-                    }
                     return
                 case WEBSOCKET_EVENTS.AutoDownloaderItemAdded:
                     await invalidateQueryKeys(queryClient, autoDownloaderRefreshKeys)

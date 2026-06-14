@@ -1,4 +1,3 @@
-import { useServerUrl } from "@/atoms/server.atoms"
 import { EpisodePageSelector } from "@/components/shared/episode-page-selector"
 import { RowDivider } from "@/components/shared/row-divider"
 import { Surface } from "@/components/shared/surface"
@@ -7,8 +6,6 @@ import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refres
 import { usePaginatedItems } from "@/hooks/use-paginated-items"
 import {
     type DownloadedAnimeInfo,
-    getCompletedEpisodesForMedia,
-    syncLocalServerFilesToDownloads,
     useActiveAnimeDownloads,
     useAllDownloadedAnime,
     useAnimeDownloadDiskUsage,
@@ -17,11 +14,10 @@ import {
     useDeleteAllAnimeDownloadsForMedia,
     useDownloadedEpisodeCount,
     useFailedAnimeDownloads,
-    useIsLocalServer,
 } from "@/lib/downloads"
 import { Ionicons } from "@expo/vector-icons"
 import { Image } from "expo-image"
-import { router, useFocusEffect } from "expo-router"
+import { router } from "expo-router"
 import React from "react"
 import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -30,8 +26,6 @@ const DOWNLOADED_ANIME_PAGE_SIZE = 24
 
 export default function AnimeDownloadsScreen() {
     const insets = useSafeAreaInsets()
-    const serverUrl = useServerUrl()
-    const isLocal = useIsLocalServer()
     const downloadedAnime = useAllDownloadedAnime()
     const activeDownloads = useActiveAnimeDownloads()
     const failedDownloads = useFailedAnimeDownloads()
@@ -43,21 +37,6 @@ export default function AnimeDownloadsScreen() {
         items: downloadedAnime,
         pageSize: DOWNLOADED_ANIME_PAGE_SIZE,
     })
-    const hasDeletableDownloads = React.useMemo(() => {
-        return downloadedAnime.some(anime => {
-            const eps = getCompletedEpisodesForMedia(anime.mediaId)
-            return eps.some(ep => ep.localFilePath && !ep.isLocalServerFile)
-        })
-    }, [downloadedAnime])
-
-    useFocusEffect(
-        React.useCallback(() => {
-            if (serverUrl) {
-                void syncLocalServerFilesToDownloads(serverUrl)
-            }
-        }, [serverUrl]),
-    )
-
     useIOSScrollRefreshRateWorkaround()
 
     const handleClearAll = () => {
@@ -164,7 +143,7 @@ export default function AnimeDownloadsScreen() {
                 )}
 
 
-                {downloadedAnime.length > 0 && !isLocal && hasDeletableDownloads && (
+                {downloadedAnime.length > 0 && (
                     <Surface variant="danger" className="p-4 gap-3">
                         <FormSectionLabel>Danger Zone</FormSectionLabel>
                         <TouchableOpacity
@@ -190,18 +169,12 @@ export default function AnimeDownloadsScreen() {
 
 function AnimeDownloadRow({ anime }: { anime: DownloadedAnimeInfo }) {
     const deleteAllForMedia = useDeleteAllAnimeDownloadsForMedia()
-    const isLocal = useIsLocalServer()
-
-    const completed = React.useMemo(() => getCompletedEpisodesForMedia(anime.mediaId), [anime.mediaId])
-    const hasDeletable = React.useMemo(() => {
-        return completed.some(ep => ep.localFilePath && !ep.isLocalServerFile)
-    }, [completed])
 
     return (
         <TouchableOpacity
             className="flex-row items-center px-4 py-3"
             activeOpacity={0.7}
-            onLongPress={(isLocal || !hasDeletable) ? undefined : () => {
+            onLongPress={() => {
                 Alert.alert(
                     "Delete downloads",
                     `Remove all ${anime.downloadedCount} downloaded episodes for "${anime.title}"?`,
