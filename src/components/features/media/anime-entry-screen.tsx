@@ -5,6 +5,7 @@ import { AnimeEntryDownloadedView } from "@/components/features/media/anime-entr
 import { AnimeEntryInfoView } from "@/components/features/media/anime-entry-info-view"
 import { AnimeEntryLibraryView } from "@/components/features/media/anime-entry-library-view"
 import { useAnimeEntryScreen } from "@/components/features/media/anime-entry-screen-context"
+import { AnimeEntryServerLocalView } from "@/components/features/media/anime-entry-server-local-view"
 import { AnimeEntryView, AnimeEntryViewSwitcher } from "@/components/features/media/anime-entry-view-switcher"
 import { MediaEntryHeaderBackground } from "@/components/features/media/media-entry-header"
 import { MediaEntryScrollShell } from "@/components/features/media/media-entry-scroll-shell"
@@ -15,7 +16,8 @@ import { OfflineBanner } from "@/components/shared/offline-banner"
 import { Styles } from "@/components/shared/styles"
 import { useDevScreenProfiler } from "@/hooks/use-dev-screen-profiler"
 import { getDefaultPlaybackSource, isPluginPlaybackSource } from "@/lib/default-playback-source"
-import { useIsServerConnected, useServerConnectionState } from "@/lib/offline"
+import { useCompletedEpisodesForMedia } from "@/lib/downloads"
+import { useIsServerConnected, useServerConnectionState, useServerLocalAnimeEntry, useServerLocalIdentity } from "@/lib/offline"
 import { usePlaybackCoordinator } from "@/lib/player"
 import { useIsFocused } from "@react-navigation/native"
 import { useAtom } from "jotai"
@@ -67,6 +69,7 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
     const connectionState = useServerConnectionState()
     const isConnected = useIsServerConnected()
     const isOffline = connectionState === "disconnected"
+    const serverLocalIdentity = useServerLocalIdentity()
     const [currentView, setCurrentView] = useState<AnimeEntryView>(initialView)
     const [isPrimaryBodyReady, setIsPrimaryBodyReady] = useState(false)
     const defaultViewAppliedForIdRef = React.useRef<string | null>(null)
@@ -75,12 +78,14 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
     const onlinestreamScrollY = useSharedValue(0)
     const infoScrollY = useSharedValue(0)
     const downloadedScrollY = useSharedValue(0)
+    const serverLocalScrollY = useSharedValue(0)
     const [mountedViews, setMountedViews] = React.useState<Record<AnimeEntryView, boolean>>({
         library: initialView === "library",
         torrentstream: initialView === "torrentstream",
         onlinestream: initialView === "onlinestream",
         info: initialView === "info",
         downloaded: initialView === "downloaded",
+        "server-local": initialView === "server-local",
     })
     const activeScrollY = useMemo(() => {
         switch (currentView) {
@@ -92,11 +97,13 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
                 return infoScrollY
             case "downloaded":
                 return downloadedScrollY
+            case "server-local":
+                return serverLocalScrollY
             case "library":
             default:
                 return libraryScrollY
         }
-    }, [currentView, downloadedScrollY, infoScrollY, libraryScrollY, onlinestreamScrollY, torrentstreamScrollY])
+    }, [currentView, downloadedScrollY, infoScrollY, libraryScrollY, onlinestreamScrollY, serverLocalScrollY, torrentstreamScrollY])
 
     const { mainEpisodes, specialEpisodes, ncEpisodes, unwatchedMainEpisodes, progress } = useMemo(() => {
         if (!entry?.episodes) {
@@ -129,11 +136,28 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
         && !!serverStatus?.debridSettings?.provider
         && !!serverStatus?.debridSettings?.includeDebridStreamInLibrary
     const hasLibraryData = !!entry.libraryData
+    const serverLocalEntry = useServerLocalAnimeEntry(entry.mediaId)
+    const completedDownloads = useCompletedEpisodesForMedia(entry.mediaId)
     const hasExplicitInitialView = initialView !== "library"
     const defaultPlaybackSource = getDefaultPlaybackSource(serverStatus)
     const shouldUseAutomaticEntrySwitching = !defaultPlaybackSource || isPluginPlaybackSource(defaultPlaybackSource)
 
-    const { playLocalFileEpisode } = usePlaybackCoordinator(entry)
+    const { playLocalFileEpisode, playServerLocalFileEpisode } = usePlaybackCoordinator(entry)
+    const serverLocalEpisodeGroups = useMemo(() => {
+        const episodes = serverLocalEntry?.episodes ?? []
+        const currentProgress = serverLocalEntry?.listData?.progress ?? 0
+        const main = episodes.filter(episode => episode.type === "main")
+
+        return {
+            main,
+            special: episodes.filter(episode => episode.type === "special"),
+            nc: episodes.filter(episode => episode.type === "nc"),
+            unwatched: main.filter(episode => episode.progressNumber > currentProgress).slice(0, 10),
+        }
+    }, [serverLocalEntry])
+    const handleServerLocalEpisodePress = React.useCallback((episode: Anime_Episode) => {
+        void playServerLocalFileEpisode(episode, serverLocalEntry)
+    }, [playServerLocalFileEpisode, serverLocalEntry])
 
     const handledPlaybackIntentRef = React.useRef<string | null>(null)
 
@@ -164,6 +188,7 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
             onlinestream: currentView === "onlinestream",
             info: currentView === "info",
             downloaded: currentView === "downloaded",
+            "server-local": currentView === "server-local",
         })
     }, [currentView, isFocused])
 
@@ -202,12 +227,17 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
         setCurrentView(current => current === nextView ? current : nextView)
     }, [entry.media?.status, hasExplicitInitialView, hasLibraryData, id, isConnected, serverStatus])
 
-    // when offline, force to "downloaded" view
+    // When offline, prefer files owned by Tenji, then the cached mobile-server catalog.
     useEffect(() => {
         if (isOffline && (currentView === "library" || currentView === "torrentstream" || currentView === "onlinestream")) {
-            setCurrentView("downloaded")
+            setCurrentView(completedDownloads.length > 0 ? "downloaded" : serverLocalEntry ? "server-local" : "downloaded")
         }
-    }, [isOffline, currentView])
+    }, [completedDownloads.length, currentView, isOffline, serverLocalEntry])
+
+    useEffect(() => {
+        if (currentView !== "server-local" || serverLocalIdentity) return
+        setCurrentView(completedDownloads.length > 0 ? "downloaded" : isConnected ? "library" : "downloaded")
+    }, [completedDownloads.length, currentView, isConnected, serverLocalIdentity])
 
     useEffect(() => {
         if (!shouldUseAutomaticEntrySwitching) return
@@ -237,14 +267,17 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
         serverStatus?.settings?.library?.includeOnlineStreamingInLibrary, serverStatus?.settings?.library?.enableOnlinestream,
         shouldUseAutomaticEntrySwitching])
 
-    // hide the Online tab when onlinestream is disabled in server settings
+    // hide tabs
     const hiddenViews = useMemo(() => {
         const hidden = new Set<AnimeEntryView>()
         if (!serverStatus?.settings?.library?.enableOnlinestream) {
             hidden.add("onlinestream")
         }
+        if (!serverLocalIdentity || isConnected) {
+            hidden.add("server-local")
+        }
         return hidden
-    }, [serverStatus?.settings?.library?.enableOnlinestream])
+    }, [isConnected, serverLocalIdentity, serverStatus?.settings?.library?.enableOnlinestream])
 
     const refreshControl = isConnected ? (
         <RefreshControl
@@ -353,6 +386,30 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
                             <OfflineBanner />
                             <AnimeEntryDownloadedView entry={entry} />
                         </MediaEntryScrollShell>
+                    </View>
+                )}
+
+                {mountedViews["server-local"] && serverLocalIdentity && (
+                    <View
+                        style={{
+                            flex: currentView === "server-local" ? 1 : 0,
+                            display: currentView === "server-local" ? "flex" : "none",
+                        }}
+                    >
+                        <AnimeEntryServerLocalView
+                            entry={serverLocalEntry || entry}
+                            mediaId={serverLocalEntry ? serverLocalEntry.mediaId : entry.mediaId}
+                            entryProgress={serverLocalEntry ? (serverLocalEntry.listData?.progress ?? 0) : progress}
+                            mainEpisodes={serverLocalEntry ? serverLocalEpisodeGroups.main : []}
+                            specialEpisodes={serverLocalEntry ? serverLocalEpisodeGroups.special : []}
+                            ncEpisodes={serverLocalEntry ? serverLocalEpisodeGroups.nc : []}
+                            unwatchedMainEpisodes={serverLocalEntry ? serverLocalEpisodeGroups.unwatched : []}
+                            onEpisodePress={handleServerLocalEpisodePress}
+                            showDeferredContent={isPrimaryBodyReady}
+                            scrollY={serverLocalScrollY}
+                            showHeaderBackground={false}
+                            onTitlePress={() => setCurrentView("info")}
+                        />
                     </View>
                 )}
             </View>

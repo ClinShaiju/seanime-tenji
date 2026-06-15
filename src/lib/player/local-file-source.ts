@@ -2,6 +2,7 @@ import { appendServerHMACToken } from "@/api/client/server-auth"
 import { getServerBaseUrl } from "@/api/client/server-url"
 import type { AL_BaseAnime, Anime_EntryListData, Anime_Episode } from "@/api/generated/types"
 import { getDownloadedEpisode, getDownloadEpisodeId } from "@/lib/downloads"
+import type { ServerLocalIdentity } from "@/lib/offline/server-local-store"
 import type { AnimeEntryLaunchView, MobilePlaybackSource } from "./types"
 
 type BuildLocalEpisodePlaybackSourceParams = {
@@ -12,6 +13,7 @@ type BuildLocalEpisodePlaybackSourceParams = {
     episodes?: Anime_Episode[]
     serverUrl?: string | null
     entryView?: AnimeEntryLaunchView
+    serverLocalIdentity?: ServerLocalIdentity
 }
 
 export function getLocalEpisodePlaybackSource(
@@ -25,6 +27,7 @@ export function getLocalEpisodePlaybackSource(
         episodes,
         serverUrl,
         entryView = "library",
+        serverLocalIdentity,
     } = params
 
     const episodeId = getDownloadEpisodeId(episode.aniDBEpisode, episode.type, episode.episodeNumber, episode.localFile?.path)
@@ -45,6 +48,7 @@ export function getLocalEpisodePlaybackSource(
             nextEpisodeAction: "local-file",
             continuityKind: "mediastream",
             episodes,
+            serverLocalIdentity,
         }
     }
 
@@ -70,5 +74,7 @@ export function getLocalEpisodePlaybackSource(
         nextEpisodeAction: "local-file",
         continuityKind: "mediastream",
         episodes,
+        serverLocalIdentity,
+        serverLocalServerUrl: serverLocalIdentity ? base : undefined,
     }
 }

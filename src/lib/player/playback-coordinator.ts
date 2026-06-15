@@ -1,17 +1,19 @@
 import type { Anime_Entry, Anime_Episode, Onlinestream_VideoSource } from "@/api/generated/types"
 import { useServerUrl } from "@/atoms/server.atoms"
 import { isLocalServer } from "@/lib/downloads"
-import { useIsServerConnected } from "@/lib/offline"
+import { useIsServerConnected, useServerLocalIdentity } from "@/lib/offline"
 import { toSourceFromOnlineStream, useStartOnlineStreamPlayback } from "@/lib/player"
 import { currentPlaybackSourceAtom, playerErrorAtom, playerLoadingMessageAtom, playerOpenAtom } from "@/lib/player"
 import { openExternalPlayerURL } from "@/lib/player/external-players"
 import { getLocalEpisodePlaybackSource } from "@/lib/player/local-file-source"
 import { getPlayerPreferences } from "@/lib/player/player-preferences"
+import { resolveServerLocalEpisodePlaybackSource } from "@/lib/player/server-local-source"
 import type { MobilePlaybackSource } from "@/lib/player/types"
 import { logger } from "@/lib/utils/logger"
 import { toast } from "@/lib/utils/toast"
 import { useRouter } from "expo-router"
 import { useAtom } from "jotai"
+import { Alert } from "react-native"
 
 const log = logger("playback-coordinator")
 
@@ -45,6 +47,7 @@ async function tryOpenExternalPlayer(streamUrl: string): Promise<boolean> {
 export function usePlaybackCoordinator(entry: Anime_Entry | undefined) {
     const serverUrl = useServerUrl()
     const isServerConnected = useIsServerConnected()
+    const serverLocalIdentity = useServerLocalIdentity()
     const startOnlinePlayback = useStartOnlineStreamPlayback()
     const router = useRouter()
 
@@ -106,6 +109,40 @@ export function usePlaybackCoordinator(entry: Anime_Entry | undefined) {
         })
     }
 
+    const playServerLocalFileEpisode = async (episode: Anime_Episode, serverLocalEntry?: Anime_Entry) => {
+        const playbackEntry = serverLocalEntry ?? entry
+        if (!playbackEntry?.media || !serverUrl || !serverLocalIdentity) {
+            toast.error("Server-owned media is unavailable")
+            return
+        }
+
+        const source = await resolveServerLocalEpisodePlaybackSource({
+            mediaId: playbackEntry.media.id,
+            episode,
+            media: playbackEntry.media,
+            entryListData: playbackEntry.listData ?? undefined,
+            episodes: playbackEntry.episodes ?? undefined,
+            configuredServerUrl: serverUrl,
+            identity: serverLocalIdentity,
+        })
+
+        if (!source) {
+            Alert.alert(
+                "Seanime Server unavailable",
+                "Start Seanime Server Mobile. Without internet, enable its offline mode before starting the server.",
+            )
+            return
+        }
+
+        if (source.streamKind !== "file") {
+            log.info(`Starting server-local playback: ${episode.localFile?.path ?? "unknown"}`)
+        }
+
+        const opened = await tryOpenExternalPlayer(source.url)
+        if (opened) return
+        openBuiltInPlayer(source)
+    }
+
     // Online stream playback
     const playOnlineStreamEpisode = (params: {
         videoSource: Onlinestream_VideoSource
@@ -137,6 +174,7 @@ export function usePlaybackCoordinator(entry: Anime_Entry | undefined) {
 
     return {
         playLocalFileEpisode,
+        playServerLocalFileEpisode,
         playOnlineStreamEpisode,
     }
 }

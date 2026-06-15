@@ -232,7 +232,8 @@ function PlayerScreenInner() {
         if (!source || source.nextEpisodeAction !== "local-file" || !nextEpisode) return null
 
         const isLocal = serverUrl ? isLocalServer(serverUrl) : false
-        const effectiveServerUrl = (isServerConnected || isLocal) ? serverUrl : null
+        const effectiveServerUrl = source.serverLocalServerUrl
+            ?? ((isServerConnected || isLocal) ? serverUrl : null)
 
         return getLocalEpisodePlaybackSource({
             mediaId: source.mediaId,
@@ -242,6 +243,7 @@ function PlayerScreenInner() {
             episodes: source.episodes,
             serverUrl: effectiveServerUrl,
             entryView: source.entryView ?? "library",
+            serverLocalIdentity: source.serverLocalIdentity,
         })
     }, [isServerConnected, nextEpisode, serverUrl, source])
 
@@ -630,14 +632,18 @@ function PlayerScreenInner() {
 
         if (source.nextEpisodeAction === "local-file") {
             if (!episode) return
+            const isLocal = serverUrl ? isLocalServer(serverUrl) : false
+            const effectiveServerUrl = source.serverLocalServerUrl
+                ?? ((isServerConnected || isLocal) ? serverUrl : null)
             const newSource = getLocalEpisodePlaybackSource({
                 mediaId: source.mediaId,
                 episode,
                 media: source.media,
                 entryListData: source.entryListData,
                 episodes: source.episodes,
-                serverUrl: isServerConnected ? serverUrl : null,
+                serverUrl: effectiveServerUrl,
                 entryView: source.entryView ?? "library",
+                serverLocalIdentity: source.serverLocalIdentity,
             })
             if (!newSource) {
                 if (!isServerConnected) {

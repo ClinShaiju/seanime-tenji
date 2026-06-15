@@ -10,7 +10,14 @@ import {
 } from "@/api/generated/endpoint.types"
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
 import { AL_BaseAnime, Anime_Entry, Anime_LocalFile, Anime_MissingEpisodes, Anime_UpcomingEpisodes, Nullish } from "@/api/generated/types"
-import { createListDataConflictGuard, updateAnimeDownloadEntrySnapshotProgress } from "@/lib/offline"
+import {
+    createListDataConflictGuard,
+    getServerLocalAnimeRecord,
+    parseServerLocalAnimeEntry,
+    updateAnimeDownloadEntrySnapshotProgress,
+    updateServerLocalAnimeProgress,
+    useServerLocalIdentity,
+} from "@/lib/offline"
 import { useOfflineProgressUpdate } from "@/lib/offline"
 import { toast } from "@/lib/utils/toast"
 import type { MutationFunctionContext } from "@tanstack/query-core"
@@ -117,6 +124,7 @@ export function useToggleAnimeEntrySilenceStatus() {
 export function useUpdateAnimeEntryProgress(id: Nullish<string | number>, episodeNumber: number, showToast: boolean = true) {
     const queryClient = useQueryClient()
     const queueProgressUpdate = useOfflineProgressUpdate()
+    const serverLocalIdentity = useServerLocalIdentity()
 
     const mutation = useServerMutation<boolean, UpdateAnimeEntryProgress_Variables>({
         endpoint: API_ENDPOINTS.ANIME_ENTRIES.UpdateAnimeEntryProgress.endpoint,
@@ -139,6 +147,7 @@ export function useUpdateAnimeEntryProgress(id: Nullish<string | number>, episod
         if (!targetMediaId) return
 
         updateAnimeDownloadEntrySnapshotProgress(Number(targetMediaId), variables.episodeNumber)
+        updateServerLocalAnimeProgress(Number(targetMediaId), variables.episodeNumber, serverLocalIdentity)
 
         queryClient.setQueryData<Anime_Entry | undefined>(
             [API_ENDPOINTS.ANIME_ENTRIES.GetAnimeEntry.key, String(targetMediaId)],
@@ -162,13 +171,15 @@ export function useUpdateAnimeEntryProgress(id: Nullish<string | number>, episod
         const targetMediaId = Number(id ?? variables.mediaId)
         if (!Number.isFinite(targetMediaId)) return undefined
 
-        const currentEntry = queryClient.getQueryData<Anime_Entry | undefined>([
+        const queryEntry = queryClient.getQueryData<Anime_Entry | undefined>([
             API_ENDPOINTS.ANIME_ENTRIES.GetAnimeEntry.key,
             String(targetMediaId),
         ])
+        const currentEntry = queryEntry
+            ?? parseServerLocalAnimeEntry(getServerLocalAnimeRecord(targetMediaId, serverLocalIdentity))
 
         return createListDataConflictGuard("anime", targetMediaId, currentEntry)
-    }, [id, queryClient])
+    }, [id, queryClient, serverLocalIdentity])
 
     const handleQueuedSuccess = useCallback((variables: UpdateAnimeEntryProgress_Variables, options?: Parameters<typeof mutation.mutate>[1]) => {
         const queuedContext = {} as MutationFunctionContext

@@ -8,6 +8,7 @@ import type {
     NativePlayer_StreamType,
     Onlinestream_Subtitle,
 } from "@/api/generated/types"
+import type { ServerLocalIdentity } from "@/lib/offline/server-local-store"
 
 ///////////////////////////////////////////////////////////////////////////////
 // Mobile playback source
@@ -22,7 +23,7 @@ import type {
  */
 export type MobileStreamKind = "http" | "hls" | "file"
 
-export type AnimeEntryLaunchView = "library" | "torrentstream" | "onlinestream" | "downloaded"
+export type AnimeEntryLaunchView = "library" | "torrentstream" | "onlinestream" | "downloaded" | "server-local"
 
 export type PlayerNextEpisodeAction =
     | "local-file"
@@ -77,6 +78,12 @@ export type MobilePlaybackSource = {
 
     /** Strategy the player should use when advancing to the next episode. */
     nextEpisodeAction?: PlayerNextEpisodeAction
+
+    /** Mobile server identity used to validate manual-offline loopback playback. */
+    serverLocalIdentity?: ServerLocalIdentity
+
+    /** Server base selected by the loopback/configured-address resolver. */
+    serverLocalServerUrl?: string
 
     /**
      * unused

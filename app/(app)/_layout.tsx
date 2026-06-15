@@ -1,7 +1,7 @@
 import { ServerDataWrapper } from "@/api/components/server-data-wrapper"
 import { useServerUrl } from "@/atoms/server.atoms"
 import { useDownloadQueueResumeService } from "@/lib/downloads/download-queue-resume-service"
-import { useDownloadSnapshotRefreshService, useOfflineSyncService } from "@/lib/offline"
+import { useDownloadSnapshotRefreshService, useOfflineSyncService, useServerLocalSyncService } from "@/lib/offline"
 import { usePlayerEventListener } from "@/lib/player"
 import { Stack } from "expo-router"
 import { View } from "react-native"
@@ -9,6 +9,7 @@ import { View } from "react-native"
 function BackgroundServices() {
     useOfflineSyncService()
     useDownloadSnapshotRefreshService()
+    useServerLocalSyncService()
     useDownloadQueueResumeService()
     return null
 }

@@ -6,13 +6,14 @@ import { SafeView } from "@/components/layout/layout-view"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { LuffyError } from "@/components/shared/luffy-error"
 import { getDownloadedEpisodesForMedia } from "@/lib/downloads/download-store"
+import { useServerLocalAnimeEntry } from "@/lib/offline"
 import { saveAnimeDownloadEntrySnapshot } from "@/lib/offline/download-entry-snapshot-store"
 import { resolveOfflineAnimeEntry } from "@/lib/offline/offline-entry-resolver"
 import { router, useLocalSearchParams } from "expo-router"
 import * as React from "react"
 import { Text, TouchableOpacity, View } from "react-native"
 
-const VALID_VIEWS = new Set<AnimeEntryView>(["library", "torrentstream", "onlinestream", "info", "downloaded"])
+const VALID_VIEWS = new Set<AnimeEntryView>(["library", "torrentstream", "onlinestream", "info", "downloaded", "server-local"])
 
 export default function Screen() {
     const { id, initialView } = useLocalSearchParams<{ id: string, initialView?: string }>()
@@ -22,7 +23,8 @@ export default function Screen() {
             : "library"
 
     const { data: entry, isLoading, isFetching, refetch } = useGetAnimeEntry(id)
-    const offlineEntry = React.useMemo(() => resolveOfflineAnimeEntry(Number(id)), [id])
+    const serverLocalEntry = useServerLocalAnimeEntry(Number(id))
+    const offlineEntry = React.useMemo(() => resolveOfflineAnimeEntry(Number(id), serverLocalEntry), [id, serverLocalEntry])
     const resolvedEntry = entry?.media ? entry : offlineEntry
 
     React.useEffect(() => {

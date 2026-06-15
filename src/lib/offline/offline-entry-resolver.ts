@@ -25,10 +25,14 @@ function isValidMangaEntry(entry: Manga_Entry | undefined, mediaId: number): ent
     return Boolean(entry && entry.mediaId === mediaId && entry.media)
 }
 
-function getStoredAnimeEntry(mediaId: number): Anime_Entry | undefined {
+function getStoredAnimeEntry(mediaId: number, serverLocalEntry?: Anime_Entry): Anime_Entry | undefined {
     const downloadedEntrySnapshot = getAnimeDownloadEntrySnapshot(mediaId)
     if (isValidAnimeEntry(downloadedEntrySnapshot, mediaId)) {
         return downloadedEntrySnapshot
+    }
+
+    if (isValidAnimeEntry(serverLocalEntry, mediaId)) {
+        return serverLocalEntry
     }
 
     const storedOfflineEntry = parseStoredEntryPayload<Anime_Entry>(getOfflineEntry("anime", mediaId)?.payload)
@@ -166,10 +170,13 @@ function buildFallbackMangaMedia(
     }
 }
 
-export function resolveOfflineAnimeEntry(mediaId: number | undefined): Anime_Entry | undefined {
+export function resolveOfflineAnimeEntry(
+    mediaId: number | undefined,
+    serverLocalEntry?: Anime_Entry,
+): Anime_Entry | undefined {
     if (!mediaId || !Number.isFinite(mediaId)) return undefined
 
-    const storedEntry = getStoredAnimeEntry(mediaId)
+    const storedEntry = getStoredAnimeEntry(mediaId, serverLocalEntry)
     if (storedEntry) {
         return storedEntry
     }

@@ -5,7 +5,7 @@ import * as React from "react"
 import { Platform, Pressable, View } from "react-native"
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated"
 
-export type AnimeEntryView = "library" | "torrentstream" | "onlinestream" | "info" | "downloaded"
+export type AnimeEntryView = "library" | "torrentstream" | "onlinestream" | "info" | "downloaded" | "server-local"
 
 type AnimeEntryViewSwitcherProps = {
     currentView: AnimeEntryView
@@ -17,6 +17,7 @@ type AnimeEntryViewSwitcherProps = {
 
 const VIEW_ITEMS: Array<{ label: string, icon: React.ComponentProps<typeof Ionicons>["name"], view: AnimeEntryView }> = [
     { label: "Library", icon: "library-outline", view: "library" },
+    { label: "On Server", icon: "library-outline", view: "server-local" },
     { label: "Stream", icon: "play-circle-outline", view: "torrentstream" },
     { label: "Online", icon: "globe-outline", view: "onlinestream" },
     { label: "Info", icon: "information-circle-outline", view: "info" },
@@ -26,10 +27,16 @@ const VIEW_ITEMS: Array<{ label: string, icon: React.ComponentProps<typeof Ionic
 const OFFLINE_DISABLED_VIEWS: Set<AnimeEntryView> = new Set(["library", "torrentstream", "onlinestream"])
 
 export function AnimeEntryViewSwitcher({ currentView, onViewChange, bottomInset, isOffline, hiddenViews }: AnimeEntryViewSwitcherProps) {
-    const visibleItems = React.useMemo(
-        () => hiddenViews?.size ? VIEW_ITEMS.filter(item => !hiddenViews.has(item.view)) : VIEW_ITEMS,
-        [hiddenViews],
-    )
+    const visibleItems = React.useMemo(() => {
+        let items = VIEW_ITEMS
+        if (hiddenViews?.size) {
+            items = items.filter(item => !hiddenViews.has(item.view))
+        }
+        if (isOffline) {
+            items = items.filter(item => !OFFLINE_DISABLED_VIEWS.has(item.view))
+        }
+        return items
+    }, [hiddenViews, isOffline])
 
     return (
         <View
@@ -43,19 +50,15 @@ export function AnimeEntryViewSwitcher({ currentView, onViewChange, bottomInset,
                 className="flex-row justify-between overflow-hidden rounded-full bg-background px-5 py-4"
                 style={{ elevation: 10 }}
             >
-                {visibleItems.map(item => {
-                    const disabled = isOffline && OFFLINE_DISABLED_VIEWS.has(item.view)
-                    return (
-                        <AnimeEntryViewButton
-                            key={item.view}
-                            label={item.label}
-                            icon={item.icon}
-                            active={currentView === item.view}
-                            onPress={() => onViewChange(item.view)}
-                            disabled={disabled}
-                        />
-                    )
-                })}
+                {visibleItems.map(item => (
+                    <AnimeEntryViewButton
+                        key={item.view}
+                        label={item.label}
+                        icon={item.icon}
+                        active={currentView === item.view}
+                        onPress={() => onViewChange(item.view)}
+                    />
+                ))}
             </View>
         </View>
     )
@@ -66,10 +69,9 @@ type AnimeEntryViewButtonProps = {
     icon: React.ComponentProps<typeof Ionicons>["name"]
     active: boolean
     onPress: () => void
-    disabled?: boolean
 }
 
-function AnimeEntryViewButton({ label, icon, active, onPress, disabled }: AnimeEntryViewButtonProps) {
+function AnimeEntryViewButton({ label, icon, active, onPress }: AnimeEntryViewButtonProps) {
     const scale = useSharedValue(active ? 0 : 1)
 
     React.useEffect(() => {
@@ -80,31 +82,30 @@ function AnimeEntryViewButton({ label, icon, active, onPress, disabled }: AnimeE
         return {
             transform: [{ scale: interpolate(scale.value, [0, 1], [1.2, 1]) }],
             top: interpolate(scale.value, [0, 1], [1, 9]),
-            opacity: disabled ? 0.25 : 1,
         }
     })
 
     const animatedTextStyle = useAnimatedStyle(() => {
         return {
-            opacity: disabled ? 0 : interpolate(scale.value, [0, 1], [1, 0]),
+            opacity: interpolate(scale.value, [0, 1], [1, 0]),
             top: interpolate(scale.value, [1, 0], [20, 4]),
         }
     })
 
     return (
         <Pressable
-            onPress={disabled ? undefined : onPress}
+            onPress={onPress}
             className="flex-1 items-center justify-center gap-1"
         >
             <Animated.View style={animatedIconStyle}>
                 <TabBarIcon
                     name={icon}
                     size={24}
-                    className={cn("text-gray", { "text-brand-300": active && !disabled })}
+                    className={cn("text-gray", { "text-brand-300": active })}
                 />
             </Animated.View>
             <Animated.Text
-                className={cn("text-xs text-gray", { "text-brand-300": active && !disabled })}
+                className={cn("text-xs text-gray", { "text-brand-300": active })}
                 style={animatedTextStyle}
             >
                 {label}

@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
+import { requestServerLocalSync } from "@/lib/offline"
 import { logger } from "@/lib/utils/logger"
 import { toast } from "@/lib/utils/toast"
 import { useQueryClient } from "@tanstack/react-query"
@@ -164,6 +165,7 @@ export function useWebsocketEventRouter(socket: WebSocket | null) {
                     return
                 case WEBSOCKET_EVENTS.RefreshedAnilistAnimeCollection:
                     await invalidateQueryKeys(queryClient, animeCollectionRefreshKeys)
+                    requestServerLocalSync()
                     return
                 case WEBSOCKET_EVENTS.RefreshedAnilistMangaCollection:
                     await invalidateQueryKeys(queryClient, mangaCollectionRefreshKeys)
@@ -182,6 +184,7 @@ export function useWebsocketEventRouter(socket: WebSocket | null) {
                 case WEBSOCKET_EVENTS.LibraryWatcherFileAdded:
                 case WEBSOCKET_EVENTS.LibraryWatcherFileRemoved:
                     await invalidateQueryKeys(queryClient, libraryRefreshKeys)
+                    requestServerLocalSync()
                     return
                 case WEBSOCKET_EVENTS.AutoDownloaderItemAdded:
                     await invalidateQueryKeys(queryClient, autoDownloaderRefreshKeys)
@@ -195,6 +198,7 @@ export function useWebsocketEventRouter(socket: WebSocket | null) {
                     return
                 case WEBSOCKET_EVENTS.SyncLocalFinished:
                     await invalidateQueryKeys(queryClient, syncLocalFinishedKeys)
+                    requestServerLocalSync()
                     return
                 case WEBSOCKET_EVENTS.InvalidateQueries:
                     if (Array.isArray(message.payload) && message.payload.every(item => typeof item === "string")) {

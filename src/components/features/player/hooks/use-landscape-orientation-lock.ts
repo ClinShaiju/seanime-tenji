@@ -15,9 +15,7 @@ const PORTRAIT_ORIENTATIONS = new Set<ScreenOrientation.Orientation>([
 ])
 
 export function useLandscapeOrientationLock({
-    restoreLock = Platform.OS === "android"
-        ? ScreenOrientation.OrientationLock.PORTRAIT_UP
-        : ScreenOrientation.OrientationLock.DEFAULT,
+    restoreLock = ScreenOrientation.OrientationLock.PORTRAIT_UP,
 }: UseLandscapeOrientationLockParams = {}) {
     const currentLockRef = React.useRef<ScreenOrientation.OrientationLock>(
         Platform.OS === "ios"
@@ -92,16 +90,11 @@ export function useLandscapeOrientationLock({
             appStateSubscription.remove()
             unlockNativeOrientation()
 
-            if (Platform.OS === "android") {
-                requestAnimationFrame(() => {
-                    InteractionManager.runAfterInteractions(() => {
-                        void ScreenOrientation.lockAsync(restoreLock)
-                    })
+            requestAnimationFrame(() => {
+                InteractionManager.runAfterInteractions(() => {
+                    void ScreenOrientation.lockAsync(restoreLock)
                 })
-                return
-            }
-
-            void ScreenOrientation.lockAsync(restoreLock)
+            })
         }
     }, [restoreLock])
 }

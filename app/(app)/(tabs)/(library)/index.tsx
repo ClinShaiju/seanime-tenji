@@ -2,6 +2,7 @@ import { AL_BaseAnime } from "@/api/generated/types"
 import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
 import { ContinueWatching } from "@/components/features/anime/continue-watching"
 import { DownloadedAnimeList } from "@/components/features/anime/downloaded-anime-list"
+import { ServerLocalAnimeList } from "@/components/features/anime/server-local-anime-list"
 import { HorizontalMediaCardList } from "@/components/features/media/horizontal-media-card-list"
 import { LibraryHeroCarousel } from "@/components/features/media/library-hero-carousel"
 import { MediaEntryGrid } from "@/components/features/media/media-entry-grid"
@@ -12,7 +13,7 @@ import { LuffyError } from "@/components/shared/luffy-error"
 import { OfflineBanner } from "@/components/shared/offline-banner"
 import { ContinueWatchingItem, useAnimeLibraryCollection } from "@/hooks/use-anime-library-collection"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
-import { useIsServerConnected } from "@/lib/offline"
+import { useIsServerConnected, useServerLocalAnimeRecords } from "@/lib/offline"
 import { filterEntriesByTitle } from "@/lib/utils/filtering"
 import { useIsFocused } from "@react-navigation/native"
 import { router, useFocusEffect } from "expo-router"
@@ -36,6 +37,7 @@ export default function LibraryScreen() {
     const [searchQuery, setSearchQuery] = React.useState("")
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
     const [isPullRefreshing, setIsPullRefreshing] = React.useState(false)
+    const serverLocalAnime = useServerLocalAnimeRecords()
 
     const scrollY = useSharedValue(0)
     const scrollHandler = useAnimatedScrollHandler({
@@ -198,7 +200,12 @@ export default function LibraryScreen() {
                                     )}
                                 </View>
                             }
-                            ListFooterComponent={<DownloadedAnimeList />}
+                            ListFooterComponent={(
+                                <View className="gap-4">
+                                    <ServerLocalAnimeList />
+                                    <DownloadedAnimeList showOfflineEmptyState={serverLocalAnime.length === 0} />
+                                </View>
+                            )}
                             ListEmptyComponent={isConnected && continueWatchingList.length === 0 ? (
                                 <LuffyError
                                     title="Your anime library is empty"
