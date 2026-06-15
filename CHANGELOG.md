@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.1.21
+
+- ⚡️ Improved support for local server downloads
+- 🦺 iOS: Potential fix for orientation restoration issues
+
 ## v0.1.20
 
 - 🎉 Alpha release
