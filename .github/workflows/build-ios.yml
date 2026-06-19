@@ -26,7 +26,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Show tool versions
         run: |
@@ -35,7 +34,7 @@ jobs:
           pod --version
 
       - name: Install JS dependencies
-        run: npm ci
+        run: npm install
 
       - name: Expo prebuild (iOS)
         run: npx expo prebuild -p ios --no-install --clean
