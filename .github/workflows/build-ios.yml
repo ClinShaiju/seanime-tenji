@@ -27,8 +27,15 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Show tool versions
+      - name: Select newest Xcode
         run: |
+          echo "Available Xcodes:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$LATEST" ]; then
+            echo "Selecting $LATEST"
+            sudo xcode-select -s "$LATEST/Contents/Developer"
+          fi
           node -v
           xcodebuild -version
           pod --version
