@@ -1,7 +1,9 @@
 import type { Anime_Episode } from "@/api/generated/types"
+import { getClientIdentity } from "@/api/client/client-identity"
 import { useGetContinuityWatchHistory } from "@/api/hooks/continuity.hooks"
+import { useDebridStartStream } from "@/api/hooks/debrid.hooks"
 import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
-import { useServerUrl } from "@/atoms/server.atoms"
+import { useServerStatus, useServerUrl } from "@/atoms/server.atoms"
 import { NEXT_EPISODE_CONFIRM_PROGRESS_THRESHOLD, NEXT_EPISODE_CONFIRM_REMAINING_SECONDS } from "@/components/features/player/constants"
 import { clamp, formatTime, getChapterAtTime, getFillZoomScale, getSourceVideoAspectRatio } from "@/components/features/player/helpers"
 import { useAutoNextEpisode } from "@/components/features/player/hooks/use-auto-next-episode"
@@ -733,6 +735,46 @@ function PlayerScreenInner() {
         eofReached: state.eofReached,
         playNextEpisode,
     })
+
+    // Preload the next debrid episode at ~80% so autoplay starts instantly instead of
+    // after the ~20s server-side resolve. The server caches the resolved stream URL; the
+    // real next-episode start (debridstream-auto-select) then reuses it. Gated on the
+    // server's "Preload next episode" setting and only for the auto-select autoplay path.
+    const serverStatus = useServerStatus()
+    const { mutate: preloadNextDebridStream } = useDebridStartStream()
+    const preloadFiredForSourceRef = React.useRef<string | null>(null)
+    const PRELOAD_PROGRESS_THRESHOLD = 0.8
+
+    React.useEffect(() => {
+        if (!source || preloadFiredForSourceRef.current === source.id) return
+        if (source.nextEpisodeAction !== "debridstream-auto-select") return
+        if (!prefs.autoNextEpisode || !canAutoAdvance) return
+        if (!serverStatus?.debridSettings?.preloadNextStream) return
+        if (!nextEpisode?.aniDBEpisode) return
+        if (state.duration <= 0 || state.currentTime <= 0) return
+        if (state.currentTime / state.duration < PRELOAD_PROGRESS_THRESHOLD) return
+
+        preloadFiredForSourceRef.current = source.id
+        preloadNextDebridStream({
+            mediaId: source.mediaId,
+            episodeNumber: nextEpisode.episodeNumber,
+            aniDBEpisode: nextEpisode.aniDBEpisode,
+            autoSelect: true,
+            fileId: "",
+            playbackType: "externalPlayerLink",
+            clientId: getClientIdentity().clientId,
+            preload: true,
+        })
+    }, [
+        canAutoAdvance,
+        nextEpisode,
+        prefs.autoNextEpisode,
+        preloadNextDebridStream,
+        serverStatus?.debridSettings?.preloadNextStream,
+        source,
+        state.currentTime,
+        state.duration,
+    ])
 
     const shouldConfirmEarlySkip = state.duration > 0
         && remainingTime > NEXT_EPISODE_CONFIRM_REMAINING_SECONDS

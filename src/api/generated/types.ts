@@ -3777,6 +3777,7 @@ export type Models_DebridSettings = {
     includeDebridStreamInLibrary: boolean
     streamAutoSelect: boolean
     streamPreferredResolution: string
+    preloadNextStream: boolean
     id: number
     createdAt?: string
     updatedAt?: string

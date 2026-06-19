@@ -1,0 +1,83 @@
+name: Build iOS (unsigned)
+
+# Builds an UNSIGNED .ipa of the iOS app for sideloading (AltStore / Sideloadly / SideStore).
+# No Apple Developer account or signing secrets are required: the app is compiled without
+# code signing, then the .app is packaged into a Payload/ -> .ipa. The sideloading tool
+# re-signs it with your own Apple ID at install time.
+#
+# Runs on a macOS runner (required for Xcode). On a private repo this consumes Actions
+# minutes at the 10x macOS multiplier, so it is manual-only (workflow_dispatch).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 50
+    env:
+      EXPO_NO_TELEMETRY: '1'
+      CI: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Show tool versions
+        run: |
+          node -v
+          xcodebuild -version
+          pod --version
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild -p ios --no-install --clean
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install
+
+      - name: Build unsigned archive
+        working-directory: ios
+        run: |
+          set -o pipefail
+          WORKSPACE=$(ls -d *.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "Building workspace=$WORKSPACE scheme=$SCHEME"
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/app.xcarchive" \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            ONLY_ACTIVE_ARCH=NO
+
+      - name: Package unsigned .ipa
+        working-directory: ios
+        run: |
+          APP=$(ls -d build/app.xcarchive/Products/Applications/*.app | head -1)
+          NAME=$(basename "$APP" .app)
+          echo "Packaging $APP"
+          mkdir -p Payload
+          cp -R "$APP" "Payload/"
+          zip -qr "${NAME}-unsigned.ipa" Payload
+          ls -lh *.ipa
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: seanime-tenji-ios-unsigned
+          path: ios/*.ipa
+          if-no-files-found: error
