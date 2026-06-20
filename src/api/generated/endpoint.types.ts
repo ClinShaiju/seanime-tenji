@@ -1987,6 +1987,9 @@ export type SearchTorrent_Variables = {
     resolution?: string
     bestRelease?: boolean
     includeSpecialProviders?: boolean
+    // When true, the server orders results by the auto-select rules (episode → English dub →
+    // cache → format) instead of the raw provider order. Sent for debrid-stream selection.
+    sortByAutoSelect?: boolean
 }
 
 /**

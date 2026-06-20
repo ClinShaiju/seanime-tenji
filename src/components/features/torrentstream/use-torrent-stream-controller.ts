@@ -251,9 +251,11 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
             resolution,
             bestRelease: bestRelease || undefined,
             absoluteOffset: absoluteOffset > 0 ? absoluteOffset : undefined,
+            // Debrid selection: have the server order results by the auto-select rules + cache.
+            sortByAutoSelect: streamMode === "debrid",
         }),
         [absoluteOffset, bestRelease, defaultEpisodeNumber, deferredSearchQuery, entry.media, resolution, searchMode, selectedEpisode?.episodeNumber,
-            selectedProvider?.settings?.smartSearchFilters, searchProvider, smartSearchBatch],
+            selectedProvider?.settings?.smartSearchFilters, searchProvider, smartSearchBatch, streamMode],
     )
 
     const {
