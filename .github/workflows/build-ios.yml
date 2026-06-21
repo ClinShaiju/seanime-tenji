@@ -26,6 +26,8 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 50
+    permissions:
+      contents: write   # publish the .ipa as a Release asset (direct download, not a zip)
     env:
       EXPO_NO_TELEMETRY: '1'
       CI: '1'
@@ -127,6 +129,22 @@ jobs:
           ( cd "$RUNNER_TEMP" && zip -qr "${NAME}-unsigned.ipa" Payload )
           ls -lh "$RUNNER_TEMP"/*.ipa
 
+      # Artifact downloads are always re-zipped by GitHub. Publish the .ipa as a Release asset
+      # too — release assets download as the raw .ipa (what AltStore/Sideloadly expect directly).
+      - name: Publish .ipa to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          IPA=$(ls "$RUNNER_TEMP"/*.ipa | head -1)
+          TAG="ios-build-${{ github.run_number }}"
+          echo "Publishing $IPA as release $TAG"
+          gh release create "$TAG" "$IPA" \
+            --repo "${{ github.repository }}" \
+            --title "iOS unsigned build #${{ github.run_number }}" \
+            --notes "Unsigned .ipa for sideloading (AltStore / Sideloadly / SideStore). Commit ${{ github.sha }}." \
+            --prerelease
+
+      # Kept as a fallback (downloads as a .zip wrapping the .ipa).
       - name: Upload .ipa artifact
         uses: actions/upload-artifact@v4
         with:
