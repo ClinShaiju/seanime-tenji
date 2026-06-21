@@ -302,6 +302,35 @@ export const API_ENDPOINTS = {
             endpoint: "/api/v1/library/anime-entry/update-repeat",
         },
     },
+    ANIME_FRANCHISE: {
+        /**
+         *  @description
+         *  Route returns the franchise (seasons + extras + watch order) for an AniList anime media id.
+         */
+        GetAnimeFranchise: {
+            key: "ANIME-FRANCHISE-get-anime-franchise",
+            methods: ["GET"],
+            endpoint: "/api/v1/library/anime-entry/{id}/franchise",
+        },
+        /**
+         *  @description
+         *  Route returns a split-cour season merged into one continuous episode list.
+         */
+        GetMergedSeason: {
+            key: "ANIME-FRANCHISE-get-merged-season",
+            methods: ["GET"],
+            endpoint: "/api/v1/library/anime-entry/{id}/merged-season/{season}",
+        },
+        /**
+         *  @description
+         *  Route resolves franchise grouping refs (TMDB id + season number) for many AniList ids.
+         */
+        GetFranchiseRefs: {
+            key: "ANIME-FRANCHISE-get-franchise-refs",
+            methods: ["POST"],
+            endpoint: "/api/v1/library/franchise-refs",
+        },
+    },
     AUTH: {
         /**
          *  @description

@@ -1627,6 +1627,70 @@ export type Anime_EpisodeMetadata = {
 }
 
 /**
+ * - Filepath: internal/library/anime/franchise.go
+ * - Filename: franchise.go
+ * - Package: anime
+ */
+export type Anime_FranchiseGroup = {
+    tmdbId?: string
+    rootMediaId: number
+    rootMedia?: AL_BaseAnime
+    /**
+     * TV, sorted by season number
+     */
+    seasons?: Array<Anime_GroupedEntry>
+    /**
+     * movie/OVA/special, sorted by air date
+     */
+    extras?: Array<Anime_GroupedEntry>
+    /**
+     * seasons ∪ extras, sorted by air date
+     */
+    watchOrder?: Array<Anime_GroupedEntry>
+}
+
+/**
+ * - Filepath: internal/library/anime/franchise.go
+ * - Filename: franchise.go
+ * - Package: anime
+ */
+export type Anime_FranchiseRefEntry = {
+    mediaId: number
+    tmdbId: string
+    seasonNumber: number
+}
+
+/**
+ * - Filepath: internal/library/anime/franchise.go
+ * - Filename: franchise.go
+ * - Package: anime
+ */
+export type Anime_GroupedEntry = {
+    media?: AL_BaseAnime
+    mediaId: number
+    /**
+     * for distinguishing cours of the same season from mislabeled siblings
+     */
+    tmdbId: string
+    /**
+     * -1 if unknown
+     */
+    seasonNumber: number
+    /**
+     * movie/OVA/special/side-story (not a main-line season)
+     */
+    isExtra: boolean
+    /**
+     * AniList relation to the main line (SIDE_STORY, SEQUEL, …)
+     */
+    relationType: string
+    /**
+     * display tag: "", "MOVIE", "OVA", "SIDE STORY", …
+     */
+    tag: string
+}
+
+/**
  * - Filepath: internal/library/anime/collection.go
  * - Filename: collection.go
  * - Package: anime
@@ -1747,6 +1811,38 @@ export type Anime_LocalFileParsedData = {
  * - Package: anime
  */
 export type Anime_LocalFileType = "main" | "special" | "nc"
+
+/**
+ * - Filepath: internal/library/anime/franchise.go
+ * - Filename: franchise.go
+ * - Package: anime
+ */
+export type Anime_MergedCour = {
+    mediaId: number
+    media?: AL_BaseAnime
+    /**
+     * user's AniList progress for this cour
+     */
+    progress: number
+    episodeCount: number
+    /**
+     * 1-based continuous number where this cour begins
+     */
+    startEpisode: number
+}
+
+/**
+ * - Filepath: internal/library/anime/franchise.go
+ * - Filename: franchise.go
+ * - Package: anime
+ */
+export type Anime_MergedSeason = {
+    seasonNumber: number
+    cours?: Array<Anime_MergedCour>
+    episodes?: Array<Anime_Episode>
+    totalEpisodes: number
+    totalProgress: number
+}
 
 /**
  * - Filepath: internal/library/anime/missing_episodes.go
@@ -3870,6 +3966,7 @@ export type Models_LibrarySettings = {
      * "", "library", "torrentstream", "debridstream", "onlinestream", "ext:[extensionId]"
      */
     defaultPlaybackSource: string
+    groupSeasons: boolean
 }
 
 /**

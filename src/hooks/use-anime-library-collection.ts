@@ -1,7 +1,8 @@
-import { Anime_Episode } from "@/api/generated/types"
+import { Anime_Episode, Anime_LibraryCollectionList } from "@/api/generated/types"
 import { useGetLibraryCollection } from "@/api/hooks/anime_collection.hooks"
 import { useGetContinuityWatchHistory } from "@/api/hooks/continuity.hooks"
 import { useServerStatus } from "@/atoms/server.atoms"
+import { useGroupedCollectionList } from "@/lib/franchise/group-seasons"
 import { getThemeSetting } from "@/lib/theme-settings"
 import { CollectionParams, DEFAULT_COLLECTION_PARAMS, filterAnimeCollectionEntries, sortContinueWatchingEpisodes } from "@/lib/utils/filtering"
 import { atomWithImmer } from "jotai-immer"
@@ -92,6 +93,11 @@ export function useAnimeLibraryCollection() {
             lists.find(n => n.type === "DROPPED"),
         ].filter(Boolean)
     }, [data, mainLibraryDefaultParams, serverStatus?.settings?.anilist?.enableAdultContent, watchHistory])
+
+    // Collapse same-franchise seasons into one card per status list when "Group
+    // seasons" is on (no-op otherwise). The library shelves + in-library search both
+    // derive from this, so both collapse together.
+    const libraryCollectionList = useGroupedCollectionList(sortedCollection as Anime_LibraryCollectionList[])
 
     const filteredCollection = React.useMemo(() => {
         if (!data || !data.lists) return []
@@ -202,7 +208,7 @@ export function useAnimeLibraryCollection() {
         isLoading,
         isFetching,
         refetch,
-        libraryCollectionList: sortedCollection,
+        libraryCollectionList,
         filteredLibraryCollectionList: filteredCollection,
         continueWatchingList,
         hasNonLocalEpisodes: continueWatchingList.some(item => !item.episode.localFile),
