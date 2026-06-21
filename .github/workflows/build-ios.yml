@@ -7,6 +7,16 @@ name: Build iOS (unsigned)
 #
 # Runs on a macOS runner (required for Xcode). On a private repo this consumes Actions
 # minutes at the 10x macOS multiplier, so it is manual-only (workflow_dispatch).
+#
+# Build time: xcodebuild compiling the React Native / Expo pods dominates (~11 min cold).
+# To avoid recompiling them on every run, node_modules + the generated ios/ project +
+# Xcode DerivedData are cached and the regeneration steps (npm install / expo prebuild /
+# pod install) are SKIPPED on a cache hit, so file mtimes stay stable and Xcode does an
+# incremental build. The caches are keyed only on native-affecting files (deps, app
+# config, plugins, patches, native modules); a JS/TS-only change reuses the native build,
+# while a dependency/native change busts the key and forces a correct full rebuild.
+#   - First run after a native change is still ~14 min (it re-warms the caches).
+#   - A JS-only run reuses the cached native build and should be markedly faster.
 
 on:
   workflow_dispatch:
@@ -28,9 +38,8 @@ jobs:
           node-version: '20'
 
       - name: Select newest Xcode
+        id: xcode
         run: |
-          echo "Available Xcodes:"
-          ls -d /Applications/Xcode*.app 2>/dev/null || true
           LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
           if [ -n "$LATEST" ]; then
             echo "Selecting $LATEST"
@@ -39,51 +48,99 @@ jobs:
           node -v
           xcodebuild -version
           pod --version
+          # Pin the Xcode build to the DerivedData cache key (a runner image / Xcode bump
+          # must invalidate compiled output).
+          echo "ver=$(xcodebuild -version | tr '\n' '-' | tr ' ' '_')" >> "$GITHUB_OUTPUT"
 
+      # Fingerprint of everything that affects the native build. JS/TS source is
+      # deliberately excluded so ordinary code changes reuse the cached native build.
+      - name: Compute native fingerprint
+        id: fp
+        run: echo "hash=${{ hashFiles('package.json', 'app.config.ts', 'app.json', 'plugins/**', 'patches/**', 'modules/**') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache node_modules
+        id: cache-node
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      - name: Cache generated ios project (+ Pods)
+        id: cache-ios
+        uses: actions/cache@v4
+        with:
+          path: ios
+          key: ios-${{ runner.os }}-${{ steps.fp.outputs.hash }}
+
+      - name: Cache CocoaPods downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods/repos
+          key: pods-${{ runner.os }}-${{ steps.fp.outputs.hash }}
+          restore-keys: pods-${{ runner.os }}-
+
+      - name: Cache Xcode DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: dd-${{ runner.os }}-${{ steps.xcode.outputs.ver }}-${{ steps.fp.outputs.hash }}
+          restore-keys: dd-${{ runner.os }}-${{ steps.xcode.outputs.ver }}-
+
+      # Regeneration steps run only on a cache miss, so a hit keeps mtimes stable and lets
+      # xcodebuild reuse the cached object files.
       - name: Install JS dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm install
 
       - name: Expo prebuild (iOS)
+        if: steps.cache-ios.outputs.cache-hit != 'true'
         run: npx expo prebuild -p ios --no-install --clean
 
       - name: Install CocoaPods
+        if: steps.cache-ios.outputs.cache-hit != 'true'
         working-directory: ios
         run: pod install
 
       - name: Build unsigned archive
-        working-directory: ios
         run: |
           set -o pipefail
+          cd ios
           WORKSPACE=$(ls -d *.xcworkspace | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Building workspace=$WORKSPACE scheme=$SCHEME"
+          # Archive to RUNNER_TEMP so the ios/ cache never captures the build output.
+          # COMPILER_INDEX_STORE_ENABLE=NO skips indexing; DEBUG_INFORMATION_FORMAT=dwarf
+          # skips dSYM generation (not needed for sideloading) — both shave compile time.
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath "$PWD/build/app.xcarchive" \
+            -archivePath "$RUNNER_TEMP/app.xcarchive" \
             archive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
-            ONLY_ACTIVE_ARCH=NO
+            ONLY_ACTIVE_ARCH=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf
 
       - name: Package unsigned .ipa
-        working-directory: ios
         run: |
-          APP=$(ls -d build/app.xcarchive/Products/Applications/*.app | head -1)
+          APP=$(ls -d "$RUNNER_TEMP/app.xcarchive/Products/Applications/"*.app | head -1)
           NAME=$(basename "$APP" .app)
           echo "Packaging $APP"
-          mkdir -p Payload
-          cp -R "$APP" "Payload/"
-          zip -qr "${NAME}-unsigned.ipa" Payload
-          ls -lh *.ipa
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/Payload/"
+          ( cd "$RUNNER_TEMP" && zip -qr "${NAME}-unsigned.ipa" Payload )
+          ls -lh "$RUNNER_TEMP"/*.ipa
 
       - name: Upload .ipa artifact
         uses: actions/upload-artifact@v4
         with:
           name: seanime-tenji-ios-unsigned
-          path: ios/*.ipa
+          path: ${{ runner.temp }}/*.ipa
           if-no-files-found: error
