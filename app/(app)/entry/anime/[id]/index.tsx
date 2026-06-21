@@ -2,6 +2,7 @@ import { useGetAnimeEntry } from "@/api/hooks/anime_entries.hooks"
 import { AnimeEntryScreen } from "@/components/features/media/anime-entry-screen"
 import { AnimeEntryScreenProvider } from "@/components/features/media/anime-entry-screen-context"
 import { type AnimeEntryView } from "@/components/features/media/anime-entry-view-switcher"
+import { useDebridPrewarm } from "@/components/features/torrentstream/use-debrid-prewarm"
 import { SafeView } from "@/components/layout/layout-view"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { LuffyError } from "@/components/shared/luffy-error"
@@ -33,6 +34,16 @@ export default function Screen() {
 
         saveAnimeDownloadEntrySnapshot(entry)
     }, [entry])
+
+    // Prewarm the next-up episode's debrid stream on entry mount so pressing play is instant. The
+    // hook self-gates (debrid + preloadNextStream) and de-dupes; covers shows beyond the server's
+    // background continue-watching prewarm (top 3). No-op offline / without debrid.
+    const { prewarm: prewarmDebrid } = useDebridPrewarm()
+    React.useEffect(() => {
+        const next = resolvedEntry?.nextEpisode
+        if (!resolvedEntry?.mediaId || !next?.aniDBEpisode) return
+        prewarmDebrid({ mediaId: resolvedEntry.mediaId, episodeNumber: next.episodeNumber, aniDBEpisode: next.aniDBEpisode })
+    }, [resolvedEntry?.mediaId, resolvedEntry?.nextEpisode?.episodeNumber, resolvedEntry?.nextEpisode?.aniDBEpisode, prewarmDebrid])
 
     if (isLoading && !resolvedEntry) {
         return (

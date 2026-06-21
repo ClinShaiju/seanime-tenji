@@ -736,14 +736,15 @@ function PlayerScreenInner() {
         playNextEpisode,
     })
 
-    // Preload the next debrid episode at ~80% so autoplay starts instantly instead of
-    // after the ~20s server-side resolve. The server caches the resolved stream URL; the
-    // real next-episode start (debridstream-auto-select) then reuses it. Gated on the
-    // server's "Preload next episode" setting and only for the auto-select autoplay path.
+    // Preload the next debrid episode a few seconds into playback so it resolves + downloads in
+    // the background over the WHOLE current episode (was 80%, which left it only ~20% of runtime).
+    // The server caches the resolved stream URL; the real next-episode start (debridstream-auto-
+    // select) then reuses it. Gated on the server's "Preload next episode" setting and the
+    // auto-select autoplay path.
     const serverStatus = useServerStatus()
     const { mutate: preloadNextDebridStream } = useDebridStartStream()
     const preloadFiredForSourceRef = React.useRef<string | null>(null)
-    const PRELOAD_PROGRESS_THRESHOLD = 0.8
+    const PRELOAD_START_SECONDS = 3
 
     React.useEffect(() => {
         if (!source || preloadFiredForSourceRef.current === source.id) return
@@ -751,8 +752,7 @@ function PlayerScreenInner() {
         if (!prefs.autoNextEpisode || !canAutoAdvance) return
         if (!serverStatus?.debridSettings?.preloadNextStream) return
         if (!nextEpisode?.aniDBEpisode) return
-        if (state.duration <= 0 || state.currentTime <= 0) return
-        if (state.currentTime / state.duration < PRELOAD_PROGRESS_THRESHOLD) return
+        if (state.duration <= 0 || state.currentTime < PRELOAD_START_SECONDS) return
 
         preloadFiredForSourceRef.current = source.id
         preloadNextDebridStream({
