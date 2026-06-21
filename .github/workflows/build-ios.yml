@@ -8,15 +8,16 @@ name: Build iOS (unsigned)
 # Runs on a macOS runner (required for Xcode). On a private repo this consumes Actions
 # minutes at the 10x macOS multiplier, so it is manual-only (workflow_dispatch).
 #
-# Build time: xcodebuild compiling the React Native / Expo pods dominates (~11 min cold).
-# To avoid recompiling them on every run, node_modules + the generated ios/ project +
-# Xcode DerivedData are cached and the regeneration steps (npm install / expo prebuild /
-# pod install) are SKIPPED on a cache hit, so file mtimes stay stable and Xcode does an
-# incremental build. The caches are keyed only on native-affecting files (deps, app
-# config, plugins, patches, native modules); a JS/TS-only change reuses the native build,
-# while a dependency/native change busts the key and forces a correct full rebuild.
-#   - First run after a native change is still ~14 min (it re-warms the caches).
-#   - A JS-only run reuses the cached native build and should be markedly faster.
+# Build time: xcodebuild compiling the React Native / Expo pods dominates (~11 min) and
+# is NOT incrementally cacheable here — RN's codegen + JS-bundle build phases regenerate
+# files every archive, so Xcode's mtime-based incremental check recompiles regardless
+# (DerivedData caching was tried and gave no benefit, so it was removed).
+# What IS cached: node_modules + the generated ios/ project (+ Pods) + the CocoaPods
+# download cache, keyed only on native-affecting files (deps, app config, plugins,
+# patches, native modules). On a hit, npm install / expo prebuild / pod install are
+# skipped (~2 min saved); a dependency/native change busts the key and rebuilds correctly.
+# To actually cut the compile, ccache (content-addressed, survives regeneration) would be
+# the lever — not yet wired up.
 
 on:
   workflow_dispatch:
@@ -38,7 +39,6 @@ jobs:
           node-version: '20'
 
       - name: Select newest Xcode
-        id: xcode
         run: |
           LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
           if [ -n "$LATEST" ]; then
@@ -48,9 +48,6 @@ jobs:
           node -v
           xcodebuild -version
           pod --version
-          # Pin the Xcode build to the DerivedData cache key (a runner image / Xcode bump
-          # must invalidate compiled output).
-          echo "ver=$(xcodebuild -version | tr '\n' '-' | tr ' ' '_')" >> "$GITHUB_OUTPUT"
 
       # Fingerprint of everything that affects the native build. JS/TS source is
       # deliberately excluded so ordinary code changes reuse the cached native build.
@@ -81,15 +78,7 @@ jobs:
           key: pods-${{ runner.os }}-${{ steps.fp.outputs.hash }}
           restore-keys: pods-${{ runner.os }}-
 
-      - name: Cache Xcode DerivedData
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Developer/Xcode/DerivedData
-          key: dd-${{ runner.os }}-${{ steps.xcode.outputs.ver }}-${{ steps.fp.outputs.hash }}
-          restore-keys: dd-${{ runner.os }}-${{ steps.xcode.outputs.ver }}-
-
-      # Regeneration steps run only on a cache miss, so a hit keeps mtimes stable and lets
-      # xcodebuild reuse the cached object files.
+      # Regeneration steps run only on a cache miss; a hit skips them (~2 min).
       - name: Install JS dependencies
         if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm install
