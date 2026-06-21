@@ -18,6 +18,7 @@ import { LibrarySearchBar } from "@/components/shared/library-search-bar"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useIsServerConnected } from "@/lib/offline"
 import { cn } from "@/lib/utils"
+import { useGroupedAnilistCollectionLists } from "@/lib/franchise/group-seasons"
 import { CollectionParams, DEFAULT_COLLECTION_PARAMS, filterEntriesByTitle, filterListEntries } from "@/lib/utils/filtering"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
@@ -289,6 +290,10 @@ export default function MyListsScreen() {
 
     const isLoading = type === "anime" ? animeLoading : mangaLoading
 
+    // Collapse same-franchise seasons into one card per list when "Group seasons" is on
+    // (anime only; no-op otherwise). Returns the lists unchanged while refs load.
+    const groupedLists = useGroupedAnilistCollectionLists(lists as any, type === "anime") as typeof lists
+
     // list selector
     const listOptions = React.useMemo(() => buildListOptions(lists, type), [lists, type])
     const [selectedList, setSelectedList] = React.useState("ALL")
@@ -324,8 +329,8 @@ export default function MyListsScreen() {
     }, [type])
 
     // build sections
-    const sections = React.useMemo(() => buildSections(lists, selectedList, titleQuery, filterParams, showAdult, type),
-        [lists, selectedList, titleQuery, filterParams, showAdult, type])
+    const sections = React.useMemo(() => buildSections(groupedLists, selectedList, titleQuery, filterParams, showAdult, type),
+        [groupedLists, selectedList, titleQuery, filterParams, showAdult, type])
 
     const hasFilters = activeFilterCount > 0 || !!titleQuery.trim()
 

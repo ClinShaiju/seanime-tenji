@@ -11,14 +11,8 @@ export default function TabLayout() {
         {
             show: true,
             name: "(library)",
-            displayName: "Anime",
-            icon: "tv",
-        },
-        {
-            show: true,
-            name: "(manga)",
-            displayName: "Manga",
-            icon: "book",
+            displayName: "Library",
+            icon: "library",
         },
         {
             show: true,
@@ -56,6 +50,8 @@ export default function TabLayout() {
                     }}
                 />
             ))}
+            {/* Manga removed from the bottom bar (replaced by Library); route still resolvable. */}
+            <Tabs.Screen name="(manga)" options={{ href: null }} />
         </Tabs>
     )
 }

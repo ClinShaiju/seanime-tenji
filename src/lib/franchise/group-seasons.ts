@@ -221,6 +221,38 @@ export function useGroupedById<T extends {
     }, [items, refs, groupSeasons, repFirst])
 }
 
+// useGroupedAnilistCollectionLists collapses every list's entries within that list
+// (the My Lists page). One refs fetch for all ids; returns the lists unchanged while
+// loading or when disabled. Generic over the list shape so it preserves status/name.
+export function useGroupedAnilistCollectionLists<L extends { entries?: AL_AnimeCollection_MediaListCollection_Lists_Entries[] | null }>(
+    lists: L[] | undefined,
+    enabled: boolean,
+): L[] | undefined {
+    const serverStatus = useServerStatus()
+    const groupSeasons = enabled && !!serverStatus?.settings?.library?.groupSeasons
+
+    const allIds = React.useMemo(
+        () => groupSeasons
+            ? (lists ?? []).flatMap(l => l.entries ?? []).map(e => e.media?.id).filter((x): x is number => !!x)
+            : [],
+        [lists, groupSeasons],
+    )
+
+    const { data: refs } = useGetFranchiseRefs(allIds, groupSeasons)
+
+    return React.useMemo(() => {
+        if (!groupSeasons || !refs?.length || !lists) return lists
+        const refMap = buildRefMap(refs)
+        return lists.map(l => ({
+            ...l,
+            entries: collapseBy(l.entries ?? [], e => e.media?.id, refMap, {
+                titleOf: e => e.media?.title?.romaji ?? e.media?.title?.userPreferred ?? undefined,
+                formatOf: e => e.media?.format,
+            }),
+        }))
+    }, [lists, refs, groupSeasons])
+}
+
 export type GroupedAnilistEntry = AL_AnimeCollection_MediaListCollection_Lists_Entries & {
     __franchiseSeasons?: number
     __franchiseMembers?: AL_AnimeCollection_MediaListCollection_Lists_Entries[]

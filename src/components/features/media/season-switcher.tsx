@@ -68,8 +68,10 @@ export function SeasonSwitcher({ mediaId }: { mediaId: number }) {
     const watchOrder = franchise.watchOrder ?? []
     if (seasons.length + extras.length <= 1) return null
 
+    // replace (not push) so switching seasons doesn't stack entry screens — back from
+    // any season returns to wherever you opened the entry from, not the prior season.
     const go = (id: number) => {
-        if (id && id !== currentId) router.push({ pathname: "/(app)/entry/anime/[id]", params: { id: String(id) } })
+        if (id && id !== currentId) router.replace({ pathname: "/(app)/entry/anime/[id]", params: { id: String(id) } })
     }
 
     const selectSeason = (key: string) => {

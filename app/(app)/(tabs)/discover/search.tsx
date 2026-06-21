@@ -5,6 +5,7 @@ import { MediaEntryCard } from "@/components/features/media/media-entry-card"
 import { SafeView } from "@/components/layout/layout-view"
 import { LibrarySearchBar } from "@/components/shared/library-search-bar"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
+import { useGroupedById } from "@/lib/franchise/group-seasons"
 import { DEFAULT_SEARCH_PARAMS, getActiveFiltersCount, isSearchActive, SearchParams, searchParamsAtom } from "@/lib/search/search-atoms"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { router, useLocalSearchParams } from "expo-router"
@@ -111,6 +112,10 @@ export default function SearchScreen() {
             .filter(Boolean) ?? []
     }, [activeQuery.data])
 
+    // Collapse same-franchise seasons into one result when "Group seasons" is on
+    // (anime only; no-op otherwise).
+    const groupedItems = useGroupedById(items as AL_BaseAnime[], params.type === "anime") as (AL_BaseAnime | AL_BaseManga)[]
+
     function handleLoadMore() {
         if (activeQuery.hasNextPage && !activeQuery.isFetchingNextPage) {
             activeQuery.fetchNextPage()
@@ -182,7 +187,7 @@ export default function SearchScreen() {
                 </View>
             ) : (
                 <FlatList
-                    data={items as (AL_BaseAnime | AL_BaseManga)[]}
+                    data={groupedItems}
                     numColumns={NUM_COLUMNS}
                     keyExtractor={keyExtractor}
                     showsVerticalScrollIndicator={false}
