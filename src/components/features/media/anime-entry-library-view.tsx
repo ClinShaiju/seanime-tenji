@@ -5,7 +5,7 @@ import { EpisodeCardList } from "@/components/features/anime/episode-card-list"
 import { EpisodeListItem } from "@/components/features/anime/episode-list-item"
 import { AnimeEntryActionBar } from "@/components/features/media/anime-entry-action-bar"
 import { MediaEntryHeaderBackground, MediaEntryHeaderContent } from "@/components/features/media/media-entry-header"
-import { EPISODE_PAGE_SIZE, EpisodePageSelector } from "@/components/shared/episode-page-selector"
+import { EPISODE_PAGE_SIZE, EpisodePageSelector, getEpisodePageCount } from "@/components/shared/episode-page-selector"
 import { LuffyError } from "@/components/shared/luffy-error"
 import { OfflineBanner } from "@/components/shared/offline-banner"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
@@ -294,20 +294,27 @@ export function AnimeEpisodeSection({
         }
     }, [episodes, initialActiveEpisodeNumber])
 
+    const pageCount = getEpisodePageCount(episodes.length)
+    // Clamp in case a folded last page made the stored page index out of range.
+    const page = Math.min(currentPage, pageCount - 1)
+
     const pagedEpisodes = React.useMemo(() => {
-        const start = currentPage * EPISODE_PAGE_SIZE
-        return episodes.slice(start, start + EPISODE_PAGE_SIZE)
-    }, [episodes, currentPage])
+        const start = page * EPISODE_PAGE_SIZE
+        // Last page absorbs the folded tail, so slice to the end of the list.
+        const end = page === pageCount - 1 ? episodes.length : start + EPISODE_PAGE_SIZE
+        return episodes.slice(start, end)
+    }, [episodes, page, pageCount])
 
     return (
         <View>
             <Text className="text-xl font-bold text-foreground mb-3">{title}</Text>
-            {episodes.length > EPISODE_PAGE_SIZE && (
+            {pageCount > 1 && (
                 <View className="mb-3 -mx-4">
                     <EpisodePageSelector
                         totalCount={episodes.length}
-                        currentPage={currentPage}
+                        currentPage={page}
                         onPageChange={setCurrentPage}
+                        foldTail
                     />
                 </View>
             )}

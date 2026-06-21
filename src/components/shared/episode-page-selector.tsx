@@ -4,12 +4,25 @@ import { Pressable, ScrollView, Text, View } from "react-native"
 
 export const EPISODE_PAGE_SIZE = 24
 
+// Number of pages for an episode list, folding a small trailing page (<= 3 episodes)
+// into the previous one — so a 25-episode (split-cour) season shows one "1–25" page
+// instead of "1–24" + a lonely "25–25".
+export function getEpisodePageCount(totalCount: number, pageSize = EPISODE_PAGE_SIZE): number {
+    if (totalCount <= pageSize) return 1
+    let count = Math.ceil(totalCount / pageSize)
+    const remainder = totalCount % pageSize
+    if (remainder > 0 && remainder <= 3) count -= 1
+    return count
+}
+
 type EpisodePageSelectorProps = {
     totalCount: number
     pageSize?: number
     currentPage: number
     onPageChange: (page: number) => void
     className?: string
+    // Fold a small trailing page into the previous one (must match the consumer's slicing).
+    foldTail?: boolean
 }
 
 /**
@@ -23,8 +36,9 @@ export function EpisodePageSelector({
     currentPage,
     onPageChange,
     className,
+    foldTail = false,
 }: EpisodePageSelectorProps) {
-    const pageCount = Math.ceil(totalCount / pageSize)
+    const pageCount = foldTail ? getEpisodePageCount(totalCount, pageSize) : Math.ceil(totalCount / pageSize)
     if (pageCount <= 1) return null
 
     return (
@@ -37,7 +51,8 @@ export function EpisodePageSelector({
             <View className="flex-row gap-2">
                 {Array.from({ length: pageCount }).map((_, i) => {
                     const start = i * pageSize + 1
-                    const end = Math.min((i + 1) * pageSize, totalCount)
+                    // Last page absorbs any folded tail, so its end is the true total.
+                    const end = i === pageCount - 1 ? totalCount : (i + 1) * pageSize
                     const isActive = i === currentPage
 
                     return (
