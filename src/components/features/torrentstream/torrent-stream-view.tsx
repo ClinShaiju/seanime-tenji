@@ -2,10 +2,13 @@ import { Anime_Entry, Anime_Episode } from "@/api/generated/types"
 import { useServerStatus } from "@/atoms/server.atoms"
 import { EpisodeCardList } from "@/components/features/anime/episode-card-list"
 import { AnimeEpisodeSection } from "@/components/features/media/anime-entry-library-view"
+import { __entry_mergedSeasonAtom, MergedSeasonSection } from "@/components/features/media/merged-season-section"
+import { SeasonSwitcher } from "@/components/features/media/season-switcher"
 import { LabeledSwitch } from "@/components/shared/labeled-switch"
 import { SegmentedControl } from "@/components/shared/segmented-control"
 import { Surface } from "@/components/shared/surface"
 import { getSequentialContinueWatchingSpoilerActive } from "@/lib/anime-spoilers"
+import { useAtomValue } from "jotai/react"
 import * as React from "react"
 import { Text, View } from "react-native"
 import type { StreamMode } from "./use-torrent-stream-controller"
@@ -53,6 +56,9 @@ export function TorrentStreamView({
 }: TorrentStreamViewProps) {
     const serverStatus = useServerStatus()
     const continueWatchingSpoilerActive = getSequentialContinueWatchingSpoilerActive(serverStatus)
+    // When a split-cour season is selected, the merged continuous list replaces the
+    // normal episode list (and the current-entry continue row, which is a different season).
+    const mergedSeason = useAtomValue(__entry_mergedSeasonAtom)
 
     const initialActiveEpisodeNumber = React.useMemo(() => {
         if (selectedEpisodeNumber > 0) return selectedEpisodeNumber
@@ -114,32 +120,45 @@ export function TorrentStreamView({
                 </Surface>
             </View>
 
-            {continueEpisodes.length > 0 && (
-                <View className="mb-6">
-                    <EpisodeCardList
-                        title="Continue Watching"
-                        episodes={continueEpisodes}
-                        onEpisodePress={handleAvailableEpisodePress}
-                        watchedProgress={progress}
-                        spoilerActive={continueWatchingSpoilerActive}
-                        disabled={isEpisodeSelectionLocked}
-                        loadingEpisodeNumber={loadingEpisodeNumber}
-                    />
-                </View>
-            )}
+            <SeasonSwitcher mediaId={entry.mediaId} />
 
-            <View className="px-4 gap-6">
-                <AnimeEpisodeSection
-                    title={`Episodes`}
-                    episodes={episodes}
-                    progress={progress}
+            {mergedSeason ? (
+                <MergedSeasonSection
                     entry={entry}
-                    onEpisodePress={handleAvailableEpisodePress}
-                    initialActiveEpisodeNumber={initialActiveEpisodeNumber}
-                    disableEpisodePresses={isEpisodeSelectionLocked}
-                    loadingEpisodeNumber={loadingEpisodeNumber}
+                    rootId={entry.mediaId}
+                    seasonNumber={mergedSeason.season}
+                    tmdb={mergedSeason.tmdb}
                 />
-            </View>
+            ) : (
+                <>
+                    {continueEpisodes.length > 0 && (
+                        <View className="mb-6">
+                            <EpisodeCardList
+                                title="Continue Watching"
+                                episodes={continueEpisodes}
+                                onEpisodePress={handleAvailableEpisodePress}
+                                watchedProgress={progress}
+                                spoilerActive={continueWatchingSpoilerActive}
+                                disabled={isEpisodeSelectionLocked}
+                                loadingEpisodeNumber={loadingEpisodeNumber}
+                            />
+                        </View>
+                    )}
+
+                    <View className="px-4 gap-6">
+                        <AnimeEpisodeSection
+                            title={`Episodes`}
+                            episodes={episodes}
+                            progress={progress}
+                            entry={entry}
+                            onEpisodePress={handleAvailableEpisodePress}
+                            initialActiveEpisodeNumber={initialActiveEpisodeNumber}
+                            disableEpisodePresses={isEpisodeSelectionLocked}
+                            loadingEpisodeNumber={loadingEpisodeNumber}
+                        />
+                    </View>
+                </>
+            )}
         </>
     )
 }
