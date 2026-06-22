@@ -40,6 +40,32 @@ export function getStoredServerAuthToken() {
 }
 
 /**
+ * Session token (multi-user profiles)
+ *
+ * Distinct from the server-password auth token above: this is the per-user session
+ * issued by POST /api/v1/user/login, sent as `Authorization: Bearer <token>`. With
+ * the server's anon-data hardening, a client that only knows the server password
+ * gets an empty session — it must present this to act as a user.
+ */
+export const SESSION_TOKEN_STORAGE_KEY = "sea-session-token"
+const sessionTokenAtom = atomWithStorage<string | null>(SESSION_TOKEN_STORAGE_KEY,
+    null,
+    createAtomStorage<string | null>(),
+    { getOnInit: true })
+
+export function useSessionToken() {
+    return useAtomValue(sessionTokenAtom)
+}
+
+export function useSetSessionToken() {
+    return useSetAtom(sessionTokenAtom)
+}
+
+export function getStoredSessionToken() {
+    return getStoredJsonValue<string | null>(SESSION_TOKEN_STORAGE_KEY)
+}
+
+/**
  * Server Status
  */
 

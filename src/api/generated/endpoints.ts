@@ -356,6 +356,50 @@ export const API_ENDPOINTS = {
             endpoint: "/api/v1/auth/logout",
         },
     },
+    USER: {
+        /** @description Multi-user profiles: log in with username + password, returns {token, user}. */
+        Login: {
+            key: "USER-login",
+            methods: ["POST"],
+            endpoint: "/api/v1/user/login",
+        },
+        /** @description Log out the current user session. */
+        Logout: {
+            key: "USER-logout",
+            methods: ["POST"],
+            endpoint: "/api/v1/user/logout",
+        },
+        /** @description Returns the current user. */
+        Me: {
+            key: "USER-me",
+            methods: ["GET"],
+            endpoint: "/api/v1/user/me",
+        },
+        /** @description Admin: list all users. */
+        List: {
+            key: "USER-list",
+            methods: ["GET"],
+            endpoint: "/api/v1/user",
+        },
+        /** @description Admin: create a user. */
+        Register: {
+            key: "USER-register",
+            methods: ["POST"],
+            endpoint: "/api/v1/user/register",
+        },
+        /** @description Save the current user's per-user settings overrides. */
+        SaveSettings: {
+            key: "USER-save-settings",
+            methods: ["PATCH"],
+            endpoint: "/api/v1/user/settings",
+        },
+        /** @description Save the current user's debrid override (use-server-debrid toggle / own key). */
+        SaveDebrid: {
+            key: "USER-save-debrid",
+            methods: ["PATCH"],
+            endpoint: "/api/v1/user/debrid",
+        },
+    },
     AUTO_DOWNLOADER: {
         /**
          *  @description

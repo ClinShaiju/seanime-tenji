@@ -310,6 +310,30 @@ export type Login_Variables = {
     token: string
 }
 
+// Multi-user profiles (hand-added; mirrors internal/handlers/user_auth.go).
+export type UserAccount = {
+    id: number
+    username: string
+    role: string
+    anilistAccountId?: number | null
+}
+
+export type UserLogin_Variables = {
+    username: string
+    password: string
+}
+
+export type UserLoginResponse = {
+    token: string
+    user: UserAccount
+}
+
+export type UserRegister_Variables = {
+    username: string
+    password: string
+    role?: string
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // auto_downloader
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

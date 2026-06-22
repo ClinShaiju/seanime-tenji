@@ -1,7 +1,7 @@
 import { addClientQueryParams, saveClientIdentityFromEvent } from "@/api/client/client-identity"
 import { getServerBaseUrl } from "@/api/client/server-url"
 import { useWebsocketEventRouter } from "@/api/components/websocket-event-router"
-import { useServerAuthToken, useServerUrl, useServerUrlProtocol } from "@/atoms/server.atoms"
+import { useServerAuthToken, useServerUrl, useServerUrlProtocol, useSessionToken } from "@/atoms/server.atoms"
 import { websocketAtom, WebsocketContext } from "@/atoms/websocket.atoms"
 import { degradeServerReachability, markServerReachable } from "@/lib/connection-state"
 import { manualOfflineModeAtom } from "@/lib/offline/manual-offline-mode"
@@ -19,6 +19,7 @@ export const websocketConnectionStateAtom = atom<"idle" | "connecting" | "connec
 export function WebsocketProvider({ children }: { children: React.ReactNode }) {
     const serverUrl = useServerUrl()
     const serverAuthToken = useServerAuthToken()
+    const sessionToken = useSessionToken()
     const serverUrlProtocol = useServerUrlProtocol()
     const manualOffline = useAtomValue(manualOfflineModeAtom)
     const [socket, setSocket] = useAtom(websocketAtom)
@@ -50,6 +51,12 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
 
             if (serverAuthToken) {
                 searchParams.set("token", serverAuthToken)
+            }
+
+            // Per-user event scoping + per-user streaming: tag this connection with the
+            // logged-in user so the server routes their events (and only theirs) here.
+            if (sessionToken) {
+                searchParams.set("session", sessionToken)
             }
 
             const socketUrl = `${serverUrlProtocol === "https:" ? "wss" : "ws"}://${getServerBaseUrl(serverUrl,
@@ -115,7 +122,7 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
                 socket.close()
             }
         }
-    }, [manualOffline, serverAuthToken, serverUrl, serverUrlProtocol, setConnectionState, setIsConnected, setSocket])
+    }, [manualOffline, serverAuthToken, sessionToken, serverUrl, serverUrlProtocol, setConnectionState, setIsConnected, setSocket])
 
     return (
         <>

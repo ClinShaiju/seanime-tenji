@@ -1,5 +1,5 @@
 import { getClientHeaders } from "@/api/client/client-identity"
-import { getStoredServerAuthToken } from "@/atoms/server.atoms"
+import { getStoredServerAuthToken, getStoredSessionToken } from "@/atoms/server.atoms"
 import * as CryptoJS from "crypto-js"
 
 type TokenClaims = {
@@ -51,14 +51,21 @@ export function hashServerPassword(password: string) {
 
 export function getServerAuthHeaders(authToken?: string | null): Record<string, string> {
     const resolvedToken = resolveAuthToken(authToken)
-    const headers = getClientHeaders()
+    const headers: Record<string, string> = { ...getClientHeaders() }
 
-    if (!resolvedToken) return headers
-
-    return {
-        ...headers,
-        "X-Seanime-Token": resolvedToken,
+    // Per-user session (multi-user profiles): identifies the acting user. The server
+    // password (X-Seanime-Token) only passes the network gate; this is what makes the
+    // request act as a logged-in user against the hardened server.
+    const sessionToken = getStoredSessionToken()
+    if (sessionToken) {
+        headers["Authorization"] = `Bearer ${sessionToken}`
     }
+
+    if (resolvedToken) {
+        headers["X-Seanime-Token"] = resolvedToken
+    }
+
+    return headers
 }
 
 export function getServerHMACToken(endpoint: string, authToken?: string | null): string {

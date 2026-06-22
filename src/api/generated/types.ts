@@ -3010,6 +3010,28 @@ export type Status = {
     serverReady: boolean
     serverHasPassword: boolean
     showChangelogTour: string
+    /**
+     * Multi-user profiles. Role of the acting user ("admin" | "user" | "").
+     */
+    userRole?: string
+    /**
+     * Whether any regular (non-admin) user exists on the server.
+     */
+    serverHasUsers?: boolean
+    /**
+     * True once the request has passed the server-password gate.
+     */
+    serverAuthenticated?: boolean
+    /**
+     * The acting (non-admin) user's debrid override state.
+     */
+    userDebrid?: Status_UserDebrid
+}
+
+export type Status_UserDebrid = {
+    useServerDebrid: boolean
+    provider: string
+    hasApiKey: boolean
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3967,6 +3989,8 @@ export type Models_LibrarySettings = {
      */
     defaultPlaybackSource: string
     groupSeasons: boolean
+    hideFranchiseSpinoffs?: boolean
+    hideFranchiseRecaps?: boolean
 }
 
 /**
