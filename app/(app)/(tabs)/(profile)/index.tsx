@@ -1,5 +1,6 @@
 import { useScanLocalFiles } from "@/api/hooks/scan.hooks"
-import { useCurrentUser } from "@/atoms/server.atoms"
+import { useUserLogout } from "@/api/hooks/user-auth.hooks"
+import { useCurrentUser, useServerStatus } from "@/atoms/server.atoms"
 import { websocketAtom } from "@/atoms/websocket.atoms"
 import { ExternalPlayerPickerSheet } from "@/components/features/player/external-player-picker-sheet"
 import { ProfileMenuItem, ProfileMenuSection, ProfileMenuToggle, RowDivider } from "@/components/features/profile/profile-menu"
@@ -36,7 +37,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function ProfileScreen() {
     const user = useCurrentUser()
+    const serverStatus = useServerStatus()
+    const { mutate: logoutUser } = useUserLogout()
     const insets = useSafeAreaInsets()
+
+    const handleSignOut = React.useCallback(() => {
+        Alert.alert(
+            "Sign out?",
+            "You'll need to sign in again to use this profile.",
+            [
+                { text: "Cancel", style: "cancel" },
+                { text: "Sign out", style: "destructive", onPress: () => logoutUser(undefined) },
+            ],
+        )
+    }, [logoutUser])
     const connectionState = useServerConnectionState()
     const [manualOffline, setManualOffline] = useManualOfflineMode()
     const activeStream = useAtomValue(activeStreamSessionAtom)
@@ -266,6 +280,20 @@ export default function ProfileScreen() {
                             onPress={() => router.push("/(app)/(tabs)/(profile)/my-lists" as never)}
                         />
                     </ProfileMenuSection>
+
+                    {/* Profile sign-out: only on a networked server where a user is signed in.
+                        Local/password-less installs have no per-user session. */}
+                    {serverStatus?.serverHasPassword && serverStatus?.userRole ? (
+                        <ProfileMenuSection title="Profile">
+                            <ProfileMenuItem
+                                icon="log-out-outline"
+                                label="Sign out"
+                                detail={`Signed in as ${serverStatus.userRole}`}
+                                onPress={handleSignOut}
+                                hideChevron
+                            />
+                        </ProfileMenuSection>
+                    ) : null}
 
                     {activeStream ? (
                         <ProfileMenuSection title="Streaming">

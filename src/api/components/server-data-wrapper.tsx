@@ -1,6 +1,7 @@
 import { ApiLoaders } from "@/api/components/api-loaders"
 import { useGetSettings } from "@/api/hooks/settings.hooks"
 import { useGetStatus } from "@/api/hooks/status.hooks"
+import { UserLoginScreen } from "@/components/features/user-auth/user-login-screen"
 import { useServerAuthToken, useServerStatus, useServerUrl, useSetServerStatus, useSetServerUrl } from "@/atoms/server.atoms"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
@@ -184,6 +185,14 @@ export function ServerDataWrapper({ children }: { children: React.ReactNode }) {
                 <Text>Change URL</Text>
             </Button>
         </View>
+    }
+
+    // Networked server (one with a server password): require a per-user login before the
+    // app. The session resolves the acting user's role; an anon (no/invalid session) has
+    // an empty role and gets the sign-in screen. Local/password-less servers skip this
+    // (the operator is admin implicitly). Mirrors the web gate.
+    if (requiresServerAuth && effectiveStatus?.serverAuthenticated && !effectiveStatus?.userRole) {
+        return <UserLoginScreen />
     }
 
     return (
