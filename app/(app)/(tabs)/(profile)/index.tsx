@@ -3,6 +3,7 @@ import { useUserLogout } from "@/api/hooks/user-auth.hooks"
 import { useCurrentUser, useServerStatus } from "@/atoms/server.atoms"
 import { websocketAtom } from "@/atoms/websocket.atoms"
 import { ExternalPlayerPickerSheet } from "@/components/features/player/external-player-picker-sheet"
+import { WatchRoomsSheet } from "@/components/features/nakama/watch-rooms-sheet"
 import { ProfileMenuItem, ProfileMenuSection, ProfileMenuToggle, RowDivider } from "@/components/features/profile/profile-menu"
 import { SafeView } from "@/components/layout/layout-view"
 import { Badge } from "@/components/ui/badge"
@@ -58,6 +59,7 @@ export default function ProfileScreen() {
     const isLocalServer = useIsLocalServer()
 
     const socket = useAtomValue(websocketAtom)
+    const [watchRoomsOpen, setWatchRoomsOpen] = React.useState(false)
     const [scanProgress, setScanProgress] = React.useState<number | null>(null)
     const [scanStatus, setScanStatus] = React.useState<string | null>(null)
 
@@ -295,6 +297,15 @@ export default function ProfileScreen() {
                         </ProfileMenuSection>
                     ) : null}
 
+                    <ProfileMenuSection title="Watch together">
+                        <ProfileMenuItem
+                            icon="people-outline"
+                            label="Watch rooms"
+                            detail="Watch in sync with others on this server"
+                            onPress={() => setWatchRoomsOpen(true)}
+                        />
+                    </ProfileMenuSection>
+
                     {activeStream ? (
                         <ProfileMenuSection title="Streaming">
                             <ProfileMenuItem
@@ -453,6 +464,8 @@ export default function ProfileScreen() {
                     open={playerPickerOpen}
                     onOpenChange={handlePlayerPickerClose}
                 />
+
+                <WatchRoomsSheet open={watchRoomsOpen} onOpenChange={setWatchRoomsOpen} />
 
                 <View className="mx-5 pt-4">
                     <Text className="text-muted-foreground text-sm text-right">{`v${otaVersionInfo.appVersion}`} | {`${otaVersionInfo.otaVersion}`}</Text>

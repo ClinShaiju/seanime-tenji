@@ -1706,6 +1706,43 @@ export const API_ENDPOINTS = {
             endpoint: "/api/v1/nakama/watch-party/chat",
         },
     },
+    NAKAMA_ROOMS: {
+        NakamaWatchRoomList: {
+            key: "NAKAMA-ROOMS-nakama-watch-room-list",
+            methods: ["GET"],
+            endpoint: "/api/v1/nakama/watch-room/list",
+        },
+        NakamaWatchRoomCreate: {
+            key: "NAKAMA-ROOMS-nakama-watch-room-create",
+            methods: ["POST"],
+            endpoint: "/api/v1/nakama/watch-room/create",
+        },
+        NakamaWatchRoomJoin: {
+            key: "NAKAMA-ROOMS-nakama-watch-room-join",
+            methods: ["POST"],
+            endpoint: "/api/v1/nakama/watch-room/join",
+        },
+        NakamaWatchRoomLeave: {
+            key: "NAKAMA-ROOMS-nakama-watch-room-leave",
+            methods: ["POST"],
+            endpoint: "/api/v1/nakama/watch-room/leave",
+        },
+        NakamaWatchRoomSetControl: {
+            key: "NAKAMA-ROOMS-nakama-watch-room-set-control",
+            methods: ["POST"],
+            endpoint: "/api/v1/nakama/watch-room/control",
+        },
+        NakamaWatchRoomForceTracks: {
+            key: "NAKAMA-ROOMS-nakama-watch-room-force-tracks",
+            methods: ["POST"],
+            endpoint: "/api/v1/nakama/watch-room/force-tracks",
+        },
+        NakamaWatchRoomAutoSkip: {
+            key: "NAKAMA-ROOMS-nakama-watch-room-auto-skip",
+            methods: ["POST"],
+            endpoint: "/api/v1/nakama/watch-room/autoskip",
+        },
+    },
     ONLINESTREAM: {
         /**
          *  @description

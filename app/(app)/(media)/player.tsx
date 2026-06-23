@@ -35,6 +35,7 @@ import { usePlayerPreferences } from "@/lib/player/player-preferences"
 import type { MobilePlaybackSource } from "@/lib/player/types"
 import { useContinuitySync } from "@/lib/player/use-continuity-sync"
 import { useMpvPlayer } from "@/lib/player/use-mpv-player"
+import { useWatchRoomSync } from "@/lib/nakama/use-watch-room-sync"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/utils/toast"
 import { useKeepAwake } from "expo-keep-awake"
@@ -158,6 +159,14 @@ function PlayerScreenInner() {
 
     useContinuitySync(player.source, state)
 
+    // Watch-room sync: emit/apply play-pause-seek, force-tracks, and the autoskip rule.
+    // In a room, only the controller auto-skips OP/ED (followers follow the synced seek),
+    // and the on/off is the room's vote result; outside a room it's the local preference.
+    const roomSync = useWatchRoomSync(player)
+    const effectiveAutoSkipOpEd = roomSync.inRoom
+        ? (roomSync.amController ? roomSync.effectiveAutoSkip : false)
+        : prefs.autoSkipOpEd
+
     const { data: watchHistory } = useGetContinuityWatchHistory()
     const resumeAppliedForRef = React.useRef<string | null>(null)
 
@@ -214,7 +223,7 @@ function PlayerScreenInner() {
         duration: state.duration,
         currentTime: state.currentTime,
         status: state.status,
-        autoSkipOpEd: prefs.autoSkipOpEd,
+        autoSkipOpEd: effectiveAutoSkipOpEd,
         playerSeekTo,
     })
 
@@ -1048,7 +1057,7 @@ function PlayerScreenInner() {
                     />
                 )}
 
-                {!isPiPActive && !controls.controlsLocked && (showSkipIntro || showSkipOutro) && (
+                {!isPiPActive && !controls.controlsLocked && !roomSync.isRoomFollower && (showSkipIntro || showSkipOutro) && (
                     <Animated.View
                         entering={FadeIn.duration(200)}
                         exiting={FadeOut.duration(150)}

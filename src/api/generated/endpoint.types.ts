@@ -1557,6 +1557,35 @@ export type NakamaSendChatMessage_Variables = {
     message: string
 }
 
+// Same-instance watch rooms (pool + multi-room model).
+export type NakamaWatchRoomCreate_Variables = {
+    name: string
+    password: string
+    clientId: string
+}
+export type NakamaWatchRoomJoin_Variables = {
+    roomId: string
+    password: string
+    clientId: string
+}
+export type NakamaWatchRoomLeave_Variables = {
+    roomId: string
+}
+export type NakamaWatchRoomSetControl_Variables = {
+    roomId: string
+    targetKey: string
+    canControl: boolean
+    all: boolean
+}
+export type NakamaWatchRoomForceTracks_Variables = {
+    roomId: string
+    forceHostTracks: boolean
+}
+export type NakamaWatchRoomAutoSkip_Variables = {
+    roomId: string
+    pref: string
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // onlinestream
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

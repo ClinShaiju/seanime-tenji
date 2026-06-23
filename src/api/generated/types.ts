@@ -4480,6 +4480,95 @@ export type Nakama_WatchPartySessionSettings = {
  */
 export type Nakama_WatchPartyStreamType = "file" | "torrent" | "debrid" | "onlinestream"
 
+// Same-instance watch rooms (pool + multi-room model). See seanime internal/nakama/watch_room.go.
+export type Nakama_PoolUserSource = "local" | "external"
+export type Nakama_PoolUser = {
+    /**
+     * Seanime user id (0 = local single-user/admin install)
+     */
+    userId: number
+    /**
+     * display name (bare, un-namespaced)
+     */
+    username: string
+    source: Nakama_PoolUserSource
+    /**
+     * external origin; "" for local
+     */
+    serverTag?: string
+}
+export type Nakama_RoomCard = {
+    id: string
+    name: string
+    hostUsername: string
+    memberCount: number
+    hasPassword: boolean
+    mediaId?: number
+    episodeNumber?: number
+    title?: string
+    coverImage?: string
+}
+export type Nakama_RoomParticipant = {
+    user: Nakama_PoolUser
+    /**
+     * the UI ws client id this participant drives from
+     */
+    clientId: string
+    /**
+     * the ORIGINAL host (room creator)
+     */
+    isHost: boolean
+    /**
+     * may drive play/pause/seek/episode
+     */
+    canControl: boolean
+    /**
+     * for promotion ordering
+     */
+    joinedAt?: string
+    autoSkipPref: string
+}
+export type Nakama_RoomPlaybackStatusPayload = {
+    roomId: string
+    paused: boolean
+    currentTime: number
+    duration: number
+    mediaId: number
+    episodeNumber: number
+    aniDbEpisode: string
+    streamType: Nakama_WatchPartyStreamType
+    audioTrack?: number
+    subtitleTrack?: number
+}
+export type Nakama_WatchRoom = {
+    id: string
+    name: string
+    /**
+     * original host's pool key (room owner)
+     */
+    hostKey: string
+    /**
+     * effective driver (host, or a promoted member)
+     */
+    controllerKey: string
+    hasPassword: boolean
+    forceHostTracks: boolean
+    /**
+     * keyed by PoolUser.Key()
+     */
+    participants?: Record<string, Nakama_RoomParticipant>
+    currentMediaInfo?: Nakama_WatchPartySessionMediaInfo
+    lastPlayback?: Nakama_RoomPlaybackStatusPayload
+    effectiveAutoSkip: boolean
+    autoSkipVotesOn: number
+    autoSkipVotesOff: number
+    createdAt?: string
+    /**
+     * sha256 hex of the password; empty = open room
+     */
+    passwordHash: string
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Nativeplayer
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
