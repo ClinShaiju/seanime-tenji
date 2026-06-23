@@ -37,6 +37,7 @@ import { useContinuitySync } from "@/lib/player/use-continuity-sync"
 import { useDebridReconnectResume } from "@/lib/player/debrid-reconnect"
 import { useMpvPlayer } from "@/lib/player/use-mpv-player"
 import { useWatchRoomSync } from "@/lib/nakama/use-watch-room-sync"
+import { watchRoomTerminateSignalAtom } from "@/lib/nakama/watch-room"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/utils/toast"
 import { useKeepAwake } from "expo-keep-awake"
@@ -603,9 +604,22 @@ function PlayerScreenInner() {
 
     // navigation
     const handleBack = React.useCallback(() => {
+        // Controller leaving playback = "stop" for the whole room (mirror of start).
+        if (roomSync.amController) roomSync.emitStop()
         player.stop()
         if (canGoBack()) back()
-    }, [back, canGoBack, player])
+    }, [back, canGoBack, player, roomSync])
+
+    // Remote teardown: the controller stopped the episode or the host closed the room. Tear
+    // down without re-emitting (this isn't our own stop).
+    const terminateSignal = useAtomValue(watchRoomTerminateSignalAtom)
+    const prevTerminateSignal = React.useRef(terminateSignal)
+    React.useEffect(() => {
+        if (terminateSignal === prevTerminateSignal.current) return
+        prevTerminateSignal.current = terminateSignal
+        player.stop()
+        if (canGoBack()) back()
+    }, [terminateSignal])
 
     const closePlayerToEntry = React.useCallback((view: MobilePlaybackSource["entryView"], mediaId: number) => {
         player.stop()

@@ -27,6 +27,7 @@ type RoomPlaybackSync = {
     duration: number
     mediaId: number
     episodeNumber: number
+    stopped?: boolean
     audioTrack?: number | null
     subtitleTrack?: number | null
 }
@@ -52,6 +53,7 @@ export type WatchRoomGating = {
     amController: boolean
     isRoomFollower: boolean
     effectiveAutoSkip: boolean
+    emitStop: () => void
 }
 
 export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
@@ -125,9 +127,29 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         }
     }, [state.currentTime, emitNow])
 
+    // Emit a stop when the controller ends the episode (player teardown). Followers tear
+    // theirs down too (handled app-wide in useWatchRoomFollow). Mirror of the start emit.
+    const emitStop = React.useCallback(() => {
+        if (!room || !inRoom || !canControl) return
+        send(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_STATUS, {
+            roomId: room.id,
+            stopped: true,
+            paused: true,
+            currentTime: 0,
+            duration: 0,
+            mediaId: 0,
+            episodeNumber: 0,
+            aniDbEpisode: "",
+            streamType: "",
+        })
+    }, [room, inRoom, canControl, send])
+
     // ---- Apply incoming sync ----
     useRoomWsListener<RoomPlaybackSync>(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_SYNC, p => {
         if (!p || !inRoom) return
+        // A stop is handled app-wide (useWatchRoomFollow tears the player down); ignore it here
+        // so we don't seek to 0 / pause an about-to-close player.
+        if (p.stopped) return
 
         // Suppress the play/pause/seek our own changes are about to report.
         applyingRemoteUntil.current = Date.now() + ECHO_GUARD_MS
@@ -152,5 +174,5 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         }
     })
 
-    return { inRoom, amController, isRoomFollower: inRoom && !amController, effectiveAutoSkip }
+    return { inRoom, amController, isRoomFollower: inRoom && !amController, effectiveAutoSkip, emitStop }
 }

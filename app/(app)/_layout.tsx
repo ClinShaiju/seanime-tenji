@@ -2,7 +2,7 @@ import { ServerDataWrapper } from "@/api/components/server-data-wrapper"
 import { useServerUrl } from "@/atoms/server.atoms"
 import { useDownloadQueueResumeService } from "@/lib/downloads/download-queue-resume-service"
 import { useDownloadSnapshotRefreshService, useOfflineSyncService, useServerLocalSyncService } from "@/lib/offline"
-import { useWatchRoomLiveState } from "@/lib/nakama/watch-room"
+import { useWatchRoomFollow, useWatchRoomLiveState } from "@/lib/nakama/watch-room"
 import { usePlayerEventListener } from "@/lib/player"
 import { Stack } from "expo-router"
 import { View } from "react-native"
@@ -13,6 +13,7 @@ function BackgroundServices() {
     useServerLocalSyncService()
     useDownloadQueueResumeService()
     useWatchRoomLiveState() // keep currentWatchRoomAtom fresh while the player is open
+    useWatchRoomFollow() // follow the controller into episodes + stop/close/reconnect
     return null
 }
 

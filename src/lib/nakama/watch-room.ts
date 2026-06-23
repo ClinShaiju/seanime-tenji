@@ -1,6 +1,11 @@
 import { getClientIdentity } from "@/api/client/client-identity"
-import type { Nakama_WatchRoom } from "@/api/generated/types"
+import type { Nakama_RoomPlaybackStatusPayload, Nakama_WatchRoom } from "@/api/generated/types"
+import { useNakamaJoinWatchRoom } from "@/api/hooks/nakama.hooks"
+import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
 import { websocketAtom } from "@/atoms/websocket.atoms"
+import { currentPlaybackSourceAtom } from "@/lib/player"
+import { toast } from "@/lib/utils/toast"
+import { useRouter } from "expo-router"
 import { atom, useAtomValue, useSetAtom } from "jotai"
 import React from "react"
 
@@ -11,6 +16,7 @@ import React from "react"
 export const NAKAMA_ROOM_EVENTS = {
     ROOMS_UPDATED: "nakama-rooms-updated", // server->client: discovery list changed
     WATCH_ROOM_STATE: "nakama-watch-room-state", // server->client: a room's full state to its members
+    WATCH_ROOM_CLOSED: "nakama-watch-room-closed", // server->client: host closed the room; members stop
     ROOM_PLAYBACK_STATUS: "nakama-room-playback-status", // client->server: report a control action
     ROOM_PLAYBACK_SYNC: "nakama-room-playback-sync", // server->client: apply a controller's action
 } as const
@@ -18,6 +24,10 @@ export const NAKAMA_ROOM_EVENTS = {
 // The room this client is currently in (null = not in a room). Lifted to a global atom
 // so the player layer can read it while the rooms sheet is closed.
 export const currentWatchRoomAtom = atom<Nakama_WatchRoom | null>(null)
+
+// Bumped to ask the player to tear down (the controller stopped the episode, or the host
+// closed the room). The player screen watches this and runs its normal back/stop path.
+export const watchRoomTerminateSignalAtom = atom(0)
 
 export function getClientId(): string {
     return getClientIdentity().clientId
@@ -70,4 +80,88 @@ export function useWatchRoomLiveState() {
             : false
         if (amMember) setRoom(room)
     })
+}
+
+// useWatchRoomFollow drives the cross-screen room reactions the player sync (which only runs
+// while the player is open) can't: FOLLOW the controller into an episode (a peer who isn't
+// watching yet has no player to adjust), STOP/CLOSE teardown, and reconnect re-join. Mount
+// once app-wide (alongside useWatchRoomLiveState).
+export function useWatchRoomFollow() {
+    const room = useAtomValue(currentWatchRoomAtom)
+    const setRoom = useSetAtom(currentWatchRoomAtom)
+    const setPlaybackIntent = useSetAtom(animeEntryPlaybackIntentAtom)
+    const bumpTerminate = useSetAtom(watchRoomTerminateSignalAtom)
+    const activeSource = useAtomValue(currentPlaybackSourceAtom)
+    const router = useRouter()
+    const clientId = getClientId()
+    const { mutate: joinRoom } = useNakamaJoinWatchRoom()
+
+    // The media+episode we last followed, so a burst of syncs doesn't relaunch it.
+    const followedKeyRef = React.useRef("")
+
+    const maybeFollow = React.useCallback((p: Nakama_RoomPlaybackStatusPayload | null) => {
+        if (!p) return
+        // Controller ended the episode → stop ours too.
+        if (p.stopped) {
+            followedKeyRef.current = ""
+            if (activeSource) bumpTerminate(c => c + 1)
+            return
+        }
+        if (!p.mediaId || !p.episodeNumber) return
+        // Cross-instance rooms can only share debrid/torrent (not local files / online streams).
+        if (p.streamType !== "debrid" && p.streamType !== "torrent") return
+        // Already playing this exact media+episode? The player sync handles position.
+        if (activeSource?.mediaId === p.mediaId && activeSource?.episodeNumber === p.episodeNumber) {
+            followedKeyRef.current = ""
+            return
+        }
+        const key = `${p.mediaId}:${p.episodeNumber}:${p.streamType}`
+        if (followedKeyRef.current === key) return
+        followedKeyRef.current = key
+        // Launch the same source: set the entry's playback intent + navigate to the entry
+        // screen, which auto-selects + opens the player (same path as next-episode autoplay).
+        setPlaybackIntent(createAnimeEntryPlaybackIntent({
+            kind: p.streamType === "debrid" ? "debridstream-auto-select" : "torrentstream-auto-select",
+            mediaId: p.mediaId,
+            episodeNumber: p.episodeNumber,
+        }))
+        router.push({
+            pathname: "/(app)/entry/anime/[id]",
+            params: { id: String(p.mediaId), initialView: "torrentstream" },
+        })
+    }, [activeSource, bumpTerminate, router, setPlaybackIntent])
+
+    // Live control actions from the controller.
+    useRoomWsListener<Nakama_RoomPlaybackStatusPayload>(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_SYNC, maybeFollow)
+
+    // Late join / room-state refresh: follow the room's last action.
+    React.useEffect(() => {
+        if (room?.lastPlayback) maybeFollow(room.lastPlayback)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [room?.id, room?.lastPlayback?.mediaId, room?.lastPlayback?.episodeNumber, room?.lastPlayback?.stopped])
+
+    // Host closed the room → leave + stop playback.
+    useRoomWsListener<string>(NAKAMA_ROOM_EVENTS.WATCH_ROOM_CLOSED, roomId => {
+        if (room && (!roomId || room.id === roomId)) {
+            followedKeyRef.current = ""
+            setRoom(null)
+            bumpTerminate(c => c + 1)
+            toast.info("The host closed the room")
+        }
+    })
+
+    // Reconnect: a new websocket gives a fresh clientId. Re-join the current room so the server
+    // remaps our driving client (sync reaches us again) and the host reclaims control. Empty
+    // password is fine — we're already a member, so it isn't re-checked.
+    const prevClientIdRef = React.useRef(clientId)
+    React.useEffect(() => {
+        const prev = prevClientIdRef.current
+        prevClientIdRef.current = clientId
+        if (prev && clientId && prev !== clientId && room) {
+            joinRoom({ roomId: room.id, password: "", clientId }, {
+                onSuccess: (updated) => { if (updated) setRoom(updated) },
+            })
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clientId])
 }
