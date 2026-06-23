@@ -455,12 +455,25 @@ export function usePlayerEventListener() {
     const cancelManualTrackingTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
     const pendingInfo = useAtomValue(torrentStreamPendingInfoAtom)
     const streamSessionMode = useAtomValue(streamSessionModeAtom)
+    // Track the currently-playing source + whether the player is open, so an external-player
+    // re-issue that resolves to the same URL (reconnect-resume) can keep playback going instead
+    // of reloading. Held in refs so the WS listener effect doesn't re-subscribe on every change.
+    const currentPlaybackSource = useAtomValue(currentPlaybackSourceAtom)
+    const playerIsOpen = useAtomValue(playerOpenAtom)
+    const currentSourceRef = React.useRef<MobilePlaybackSource | null>(null)
+    const playerOpenRef = React.useRef(false)
     React.useEffect(() => {
         pendingInfoRef.current = pendingInfo
     }, [pendingInfo])
     React.useEffect(() => {
         streamSessionModeRef.current = streamSessionMode
     }, [streamSessionMode])
+    React.useEffect(() => {
+        currentSourceRef.current = currentPlaybackSource
+    }, [currentPlaybackSource])
+    React.useEffect(() => {
+        playerOpenRef.current = playerIsOpen
+    }, [playerIsOpen])
 
     React.useEffect(() => {
             if (!socket || !serverUrl) return
@@ -697,6 +710,17 @@ export function usePlayerEventListener() {
                     setError(null)
 
                     log.info("Resolved playing source:", source)
+
+                    // Reconnect-resume idempotency: a re-issue that resolves to the URL we're
+                    // already playing (server-restart recovery / duplicate event) must NOT reload
+                    // the player — keep playback going; the session state was refreshed above. This
+                    // is what makes the debrid reconnect-resume safe against transient mobile WS
+                    // blips (app backgrounding / network switch). An aged/refreshed URL differs, so
+                    // it still reloads + resumes via continuity.
+                    if (playerOpenRef.current && currentSourceRef.current?.url === resolvedUrl) {
+                        log.info("external-player-open-url matches active stream — keeping current playback")
+                        return
+                    }
 
                     // external player
                     const prefs = getPlayerPreferences()

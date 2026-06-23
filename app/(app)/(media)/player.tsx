@@ -34,6 +34,7 @@ import { getLocalEpisodePlaybackSource } from "@/lib/player"
 import { usePlayerPreferences } from "@/lib/player/player-preferences"
 import type { MobilePlaybackSource } from "@/lib/player/types"
 import { useContinuitySync } from "@/lib/player/use-continuity-sync"
+import { useDebridReconnectResume } from "@/lib/player/debrid-reconnect"
 import { useMpvPlayer } from "@/lib/player/use-mpv-player"
 import { useWatchRoomSync } from "@/lib/nakama/use-watch-room-sync"
 import { cn } from "@/lib/utils"
@@ -158,6 +159,11 @@ function PlayerScreenInner() {
     }, [windowWidth, windowHeight, state.isPiPActive])
 
     useContinuitySync(player.source, state)
+
+    // Re-establish a debrid stream if the server restarts (deploy/crash) mid-playback: on WS
+    // reconnect after a drop while a debrid stream was active, re-issue the last start and resume
+    // from the continuity position. Idempotent (session.ts skips reload when the URL is unchanged).
+    useDebridReconnectResume()
 
     // Watch-room sync: emit/apply play-pause-seek, force-tracks, and the autoskip rule.
     // In a room, only the controller auto-skips OP/ED (followers follow the synced seek),

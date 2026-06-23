@@ -22,7 +22,9 @@ import {
 } from "@/api/hooks/torrentstream.hooks"
 import { useServerStatus } from "@/atoms/server.atoms"
 import { torrentSearchAcrossProvidersAtom, torrentSearchExtraProviderIdsAtom } from "@/atoms/torrent-search.atoms"
+import type { DebridStartStream_Variables } from "@/api/generated/endpoint.types"
 import { getDefaultPlaybackSource } from "@/lib/default-playback-source"
+import { lastDebridStreamStartAtom } from "@/lib/player/debrid-reconnect"
 import {
     activeStreamSessionAtom,
     debridStreamStateAtom,
@@ -345,6 +347,7 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
     const [, setLoadingState] = useAtom(torrentStreamLoadingStateAtom)
     const [, setStreamSessionMode] = useAtom(streamSessionModeAtom)
     const [, setDebridStreamState] = useAtom(debridStreamStateAtom)
+    const [, setLastDebridStart] = useAtom(lastDebridStreamStartAtom)
     const [, setActiveStreamSession] = useAtom(activeStreamSessionAtom)
 
     React.useEffect(() => {
@@ -440,16 +443,18 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
                     message: "Selecting best torrent...",
                 })
 
+                const autoDebridVars: DebridStartStream_Variables = {
+                    mediaId,
+                    episodeNumber: episode.episodeNumber,
+                    aniDBEpisode: episode.aniDBEpisode,
+                    autoSelect: true,
+                    fileId: "",
+                    playbackType: "externalPlayerLink",
+                    clientId: getClientIdentity().clientId,
+                }
+                setLastDebridStart(autoDebridVars) // for reconnect-resume after a server restart
                 startDebridStream(
-                    {
-                        mediaId,
-                        episodeNumber: episode.episodeNumber,
-                        aniDBEpisode: episode.aniDBEpisode,
-                        autoSelect: true,
-                        fileId: "",
-                        playbackType: "externalPlayerLink",
-                        clientId: getClientIdentity().clientId,
-                    },
+                    autoDebridVars,
                     {
                         onSuccess: () => {
                             setIsPreparing(true)
@@ -531,19 +536,21 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
                     message: params.fileId ? "Preparing selected file..." : "Analyzing selected torrent...",
                 })
 
+                const manualDebridVars: DebridStartStream_Variables = {
+                    mediaId,
+                    episodeNumber: params.episode.episodeNumber,
+                    aniDBEpisode: params.episode.aniDBEpisode,
+                    autoSelect: false,
+                    torrent: params.torrent,
+                    fileId: params.fileId ?? "",
+                    fileIndex: params.fileIndex,
+                    batchEpisodeFiles: params.batchEpisodeFiles,
+                    playbackType: "externalPlayerLink",
+                    clientId: getClientIdentity().clientId,
+                }
+                setLastDebridStart(manualDebridVars) // for reconnect-resume after a server restart
                 startDebridStream(
-                    {
-                        mediaId,
-                        episodeNumber: params.episode.episodeNumber,
-                        aniDBEpisode: params.episode.aniDBEpisode,
-                        autoSelect: false,
-                        torrent: params.torrent,
-                        fileId: params.fileId ?? "",
-                        fileIndex: params.fileIndex,
-                        batchEpisodeFiles: params.batchEpisodeFiles,
-                        playbackType: "externalPlayerLink",
-                        clientId: getClientIdentity().clientId,
-                    },
+                    manualDebridVars,
                     {
                         onSuccess: () => {
                             setIsPreparing(true)
