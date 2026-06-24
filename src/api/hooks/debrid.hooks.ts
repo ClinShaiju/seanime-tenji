@@ -141,15 +141,15 @@ export function useDebridCancelStream() {
 }
 
 // useDebridPrewarmStatus returns the set of prewarmed episodes for the current user, so the UI can
-// badge episodes that will play instantly. Polled; returns [] when debrid/preload is off. Pass
-// enabled (caller reads serverStatus) to avoid polling when debrid is disabled.
+// badge episodes that will play instantly. Fetched on mount (refetches when an episode/library
+// screen mounts) instead of a fixed poll; returns [] when debrid/preload is off. Pass enabled
+// (caller reads serverStatus) to avoid fetching when debrid is disabled.
 export function useDebridPrewarmStatus(enabled: boolean) {
     return useServerQuery<Array<DebridClient_PrewarmStatusItem>>({
         endpoint: API_ENDPOINTS.DEBRID.DebridGetPrewarmStatus.endpoint,
         method: API_ENDPOINTS.DEBRID.DebridGetPrewarmStatus.methods[0],
         queryKey: [API_ENDPOINTS.DEBRID.DebridGetPrewarmStatus.key],
         enabled: enabled,
-        refetchInterval: 30_000,
         gcTime: 60_000,
     })
 }
