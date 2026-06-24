@@ -20,7 +20,15 @@ const APPLY_ECHO_WINDOW_MS = 2500 // window after applying a remote state in whi
 const APPLY_SEEK_THRESHOLD = 0.75 // apply a remote seek only when off by more than this (avoids jitter)
 const LOCAL_SEEK_THRESHOLD = 1.5  // a position jump exceeding wall-time + this = a local seek
 const HEARTBEAT_MS = 2000 // how often the active driver re-broadcasts its position
-const HEARTBEAT_DRIFT = 1.0 // a follower re-seeks on a (server) heartbeat when off by more than this — keeps everyone within ~1s
+// Smooth-convergence tuning (followers only): instead of hard-seeking on every bit of drift
+// (which stutters), nudge MPV's speed a few percent to GLIDE back into sync. |drift|<DEADBAND =
+// normal; DEADBAND..HARD = speed 1+clamp(drift*GAIN, ±MAX) (eases in, never jumps); >HARD = snap.
+// MAX 0.05 = ±5% ≈ barely-perceptible pitch shift; the server fans fresh positions every 500ms so
+// steady-state drift stays small and the nudge is usually <2%.
+const SYNC_DEADBAND = 0.15
+const HARD_SEEK_DRIFT = 0.6
+const NUDGE_GAIN = 0.12
+const NUDGE_MAX = 0.05
 
 type RoomPlaybackSync = {
     roomId: string
@@ -41,6 +49,7 @@ type SyncPlayer = {
     play: () => void
     pause: () => void
     seekTo: (sec: number) => void
+    setSpeed: (speed: number) => void
     setAudioTrack: (trackId: number) => void
     setSubtitleTrack: (trackId: number) => void
 }
@@ -189,6 +198,13 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         return () => clearInterval(id)
     }, [canControl, amController])
 
+    // Only a FOLLOWER nudges MPV speed; the driver plays at normal speed. The driver returns early
+    // in apply, so when this client BECOMES the driver (control handoff) clear any leftover nudge.
+    React.useEffect(() => {
+        if (canControl && amController) player.setSpeed(1)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [canControl, amController])
+
     // ---- Apply incoming sync ----
     useRoomWsListener<RoomPlaybackSync>(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_SYNC, p => {
         if (!p || !inRoom) return
@@ -203,13 +219,27 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         // an echo and not re-broadcast (state-matched, robust to late events from buffering).
         lastAppliedRef.current = { paused: p.paused, currentTime: p.currentTime, at: Date.now() }
 
-        // Heartbeats only correct large drift (steady playback wanders a little); discrete
-        // seeks apply precisely.
-        const seekThreshold = p.heartbeat ? HEARTBEAT_DRIFT : APPLY_SEEK_THRESHOLD
+        // Discrete actions snap precisely; heartbeats converge SMOOTHLY via MPV speed (see tuning
+        // constants) so steady playback doesn't stutter from constant re-seeks.
         let action = "none"
-        if (isFinite(p.currentTime) && Math.abs(state.currentTime - p.currentTime) > seekThreshold) {
+        const drift = isFinite(p.currentTime) ? p.currentTime - state.currentTime : 0
+        const ad = Math.abs(drift)
+        const setSpeedSafe = (s: number) => { if (Math.abs(state.speed - s) > 0.005) player.setSpeed(s) }
+        if (!p.heartbeat) {
+            if (ad > APPLY_SEEK_THRESHOLD) {
+                action = `seek->${p.currentTime.toFixed(1)}`
+                player.seekTo(p.currentTime)
+            }
+            setSpeedSafe(1) // a real action -> normal speed
+        } else if (ad > HARD_SEEK_DRIFT) {
             action = `seek->${p.currentTime.toFixed(1)}`
             player.seekTo(p.currentTime)
+            setSpeedSafe(1)
+        } else if (ad > SYNC_DEADBAND) {
+            const off = Math.max(-NUDGE_MAX, Math.min(NUDGE_MAX, drift * NUDGE_GAIN))
+            setSpeedSafe(1 + off) // glide toward the controller
+        } else {
+            setSpeedSafe(1) // converged
         }
         if (p.paused && !state.paused) {
             action += " pause"
