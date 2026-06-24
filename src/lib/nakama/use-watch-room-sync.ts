@@ -16,7 +16,7 @@ import { currentWatchRoomAtom, getClientId, NAKAMA_ROOM_EVENTS, useRoomWsListene
 // player report play/pause/seek, which would re-broadcast and loop — emits are suppressed
 // for a short window after applying.
 
-const ECHO_GUARD_MS = 800
+const APPLY_ECHO_WINDOW_MS = 2500 // window after applying a remote state in which a matching local event is treated as its echo
 const APPLY_SEEK_THRESHOLD = 0.75 // apply a remote seek only when off by more than this (avoids jitter)
 const LOCAL_SEEK_THRESHOLD = 1.5  // a position jump exceeding wall-time + this = a local seek
 
@@ -78,12 +78,21 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
     const forceHostTracks = !!room?.forceHostTracks
     const effectiveAutoSkip = !!room?.effectiveAutoSkip
 
-    const applyingRemoteUntil = React.useRef(0)
+    // The last play/pause/seek state we applied from the controller — used to recognize and
+    // drop the echo events the apply itself fires (state-matched, not a blind time window, so
+    // a late event from buffering doesn't leak back out and a genuine action passes through).
+    const lastAppliedRef = React.useRef<{ paused: boolean, currentTime: number, at: number } | null>(null)
 
     // ---- Emit local control actions ----
     const emitNow = React.useCallback(() => {
         if (!room || !inRoom || !canControl) return
-        if (Date.now() < applyingRemoteUntil.current) return
+        // Drop the echo of a state we were just told to be in; a genuine local action diverges.
+        const la = lastAppliedRef.current
+        if (la && (Date.now() - la.at) < APPLY_ECHO_WINDOW_MS
+            && la.paused === state.paused
+            && Math.abs(state.currentTime - la.currentTime) < LOCAL_SEEK_THRESHOLD) {
+            return
+        }
 
         const payload: RoomPlaybackSync & { aniDbEpisode: string; streamType: string } = {
             roomId: room.id,
@@ -151,8 +160,9 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         // so we don't seek to 0 / pause an about-to-close player.
         if (p.stopped) return
 
-        // Suppress the play/pause/seek our own changes are about to report.
-        applyingRemoteUntil.current = Date.now() + ECHO_GUARD_MS
+        // Record the state we're applying so the play/pause/seek it triggers is recognized as
+        // an echo and not re-broadcast (state-matched, robust to late events from buffering).
+        lastAppliedRef.current = { paused: p.paused, currentTime: p.currentTime, at: Date.now() }
 
         if (isFinite(p.currentTime) && Math.abs(state.currentTime - p.currentTime) > APPLY_SEEK_THRESHOLD) {
             player.seekTo(p.currentTime)
