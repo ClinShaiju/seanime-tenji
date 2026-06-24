@@ -19,7 +19,15 @@ export const NAKAMA_ROOM_EVENTS = {
     WATCH_ROOM_CLOSED: "nakama-watch-room-closed", // server->client: host closed the room; members stop
     ROOM_PLAYBACK_STATUS: "nakama-room-playback-status", // client->server: report a control action
     ROOM_PLAYBACK_SYNC: "nakama-room-playback-sync", // server->client: apply a controller's action
+    ROOM_DEBUG: "nakama-room-debug", // client->server: diagnostic line, logged server-side (no console on iOS)
 } as const
+
+// useRoomDebug returns a function that sends a diagnostic line to the server (logged there),
+// so iOS behaviour — which has no devtools — is visible in the VPS log. Temporary.
+export function useRoomDebug() {
+    const send = useRoomWsSender()
+    return React.useCallback((msg: string) => send(NAKAMA_ROOM_EVENTS.ROOM_DEBUG, msg), [send])
+}
 
 // The room this client is currently in (null = not in a room). Lifted to a global atom
 // so the player layer can read it while the rooms sheet is closed.
@@ -112,6 +120,7 @@ export function useWatchRoomFollow() {
     const { mutate: joinRoom } = useNakamaJoinWatchRoom()
     const { mutate: joinStream } = useNakamaJoinWatchRoomStream()
     const optedOutRoomId = useAtomValue(optedOutStreamRoomIdAtom)
+    const roomDebug = useRoomDebug()
 
     const driverGuard = isRoomDriver(room, clientId)
 
@@ -124,6 +133,7 @@ export function useWatchRoomFollow() {
         if (driverGuard) return
         // Controller ended the episode → stop ours too.
         if (p.stopped) {
+            roomDebug(`follow: STOP received (activeSource=${!!activeSource}) -> ${activeSource ? "terminate" : "noop"}`)
             followedKeyRef.current = ""
             if (activeSource) bumpTerminate(c => c + 1)
             return
@@ -144,6 +154,7 @@ export function useWatchRoomFollow() {
         if (p.streamType === "debrid") {
             // Reuse the host's already-resolved link (no re-selection). The server starts the
             // stream and emits the external-player URL, which session.ts navigates the player to.
+            roomDebug(`follow: START debrid join-stream media=${p.mediaId} ep=${p.episodeNumber}`)
             joinStream({ roomId: p.roomId, clientId, playbackType: "externalPlayerLink" })
         } else {
             // Torrent: auto-select via the entry screen (link sharing is debrid-only).
@@ -152,7 +163,7 @@ export function useWatchRoomFollow() {
             }))
             router.push({ pathname: "/(app)/entry/anime/[id]", params: { id: String(p.mediaId), initialView: "torrentstream" } })
         }
-    }, [driverGuard, optedOutRoomId, activeSource, bumpTerminate, router, setPlaybackIntent, joinStream, clientId])
+    }, [driverGuard, optedOutRoomId, activeSource, bumpTerminate, router, setPlaybackIntent, joinStream, clientId, roomDebug])
 
     // Live control actions from the controller.
     useRoomWsListener<Nakama_RoomPlaybackStatusPayload>(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_SYNC, maybeFollow)
@@ -163,6 +174,7 @@ export function useWatchRoomFollow() {
     // Host closed the room → leave + stop playback.
     useRoomWsListener<string>(NAKAMA_ROOM_EVENTS.WATCH_ROOM_CLOSED, roomId => {
         if (room && (!roomId || room.id === roomId)) {
+            roomDebug("ROOM CLOSED received -> terminate + leave")
             followedKeyRef.current = ""
             setRoom(null)
             bumpTerminate(c => c + 1)

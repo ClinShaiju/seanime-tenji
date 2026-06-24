@@ -37,7 +37,7 @@ import { useContinuitySync } from "@/lib/player/use-continuity-sync"
 import { useDebridReconnectResume } from "@/lib/player/debrid-reconnect"
 import { useMpvPlayer } from "@/lib/player/use-mpv-player"
 import { useWatchRoomSync } from "@/lib/nakama/use-watch-room-sync"
-import { currentWatchRoomAtom, optedOutStreamRoomIdAtom, watchRoomTerminateSignalAtom } from "@/lib/nakama/watch-room"
+import { currentWatchRoomAtom, optedOutStreamRoomIdAtom, useRoomDebug, watchRoomTerminateSignalAtom } from "@/lib/nakama/watch-room"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/utils/toast"
 import { useKeepAwake } from "expo-keep-awake"
@@ -170,6 +170,13 @@ function PlayerScreenInner() {
     // In a room, only the controller auto-skips OP/ED (followers follow the synced seek),
     // and the on/off is the room's vote result; outside a room it's the local preference.
     const roomSync = useWatchRoomSync(player)
+    const roomDebug = useRoomDebug()
+    // DIAGNOSTIC (temporary): trace the iOS player open/close lifecycle in the VPS log.
+    React.useEffect(() => {
+        roomDebug(`PLAYER mounted (follower=${roomSync.isRoomFollower})`)
+        return () => roomDebug("PLAYER unmounted")
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
     const effectiveAutoSkipOpEd = roomSync.inRoom
         ? (roomSync.amController ? roomSync.effectiveAutoSkip : false)
         : prefs.autoSkipOpEd
@@ -628,6 +635,7 @@ function PlayerScreenInner() {
     React.useEffect(() => {
         if (terminateSignal === prevTerminateSignal.current) return
         prevTerminateSignal.current = terminateSignal
+        roomDebug("PLAYER terminate-signal fired -> stop+back")
         player.stop()
         if (canGoBack()) back()
     }, [terminateSignal])

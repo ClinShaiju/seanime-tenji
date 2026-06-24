@@ -2,7 +2,7 @@ import type { PlayerState } from "@/lib/player"
 import type { MobilePlaybackSource, MobileStreamKind } from "@/lib/player/types"
 import { useAtomValue } from "jotai"
 import React from "react"
-import { currentWatchRoomAtom, getClientId, NAKAMA_ROOM_EVENTS, useRoomWsListener, useRoomWsSender } from "./watch-room"
+import { currentWatchRoomAtom, getClientId, NAKAMA_ROOM_EVENTS, useRoomDebug, useRoomWsListener, useRoomWsSender } from "./watch-room"
 
 // Watch-room player sync for the native MPV player.
 //
@@ -62,6 +62,7 @@ export type WatchRoomGating = {
 export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
     const room = useAtomValue(currentWatchRoomAtom)
     const send = useRoomWsSender()
+    const roomDebug = useRoomDebug()
     const clientId = getClientId()
     const { state, source } = player
 
@@ -205,14 +206,21 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         // Heartbeats only correct large drift (steady playback wanders a little); discrete
         // seeks apply precisely.
         const seekThreshold = p.heartbeat ? HEARTBEAT_DRIFT : APPLY_SEEK_THRESHOLD
+        let action = "none"
         if (isFinite(p.currentTime) && Math.abs(state.currentTime - p.currentTime) > seekThreshold) {
+            action = `seek->${p.currentTime.toFixed(1)}`
             player.seekTo(p.currentTime)
         }
         if (p.paused && !state.paused) {
+            action += " pause"
             player.pause()
         } else if (!p.paused && state.paused) {
+            action += " play"
             player.play()
         }
+        // DIAGNOSTIC (temporary): received vs local state + action (visible in VPS log).
+        roomDebug(`apply recv{paused:${p.paused},t:${p.currentTime.toFixed(1)},hb:${!!p.heartbeat}} `
+            + `local{paused:${state.paused},t:${state.currentTime.toFixed(1)}} action=[${action.trim()}]`)
 
         // Force-host-tracks: mirror the host's audio/subtitle selection (followers only).
         if (forceHostTracks && !amHost) {
