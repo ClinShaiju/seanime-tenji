@@ -167,7 +167,12 @@ function InRoomPanel({ onLeft }: { onLeft: () => void }) {
                     {room.hasPassword && <Text className="text-xs text-muted-foreground">Password protected</Text>}
                 </View>
                 <Button size="sm" variant="destructive" disabled={leave.isPending}
-                    onPress={() => leave.mutate({ roomId: room.id }, { onSuccess: () => onLeft() })}>
+                    onPress={() => leave.mutate({ roomId: room.id }, {
+                        // Always drop local room state — the leave is idempotent server-side, and
+                        // if the room is already gone (host closed it) we still want out.
+                        onSuccess: () => onLeft(),
+                        onError: () => onLeft(),
+                    })}>
                     <Text>Leave</Text>
                 </Button>
             </View>

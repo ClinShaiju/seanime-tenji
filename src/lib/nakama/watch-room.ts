@@ -92,15 +92,27 @@ export function useWatchRoomFollow() {
     const setPlaybackIntent = useSetAtom(animeEntryPlaybackIntentAtom)
     const bumpTerminate = useSetAtom(watchRoomTerminateSignalAtom)
     const activeSource = useAtomValue(currentPlaybackSourceAtom)
+    const socket = useAtomValue(websocketAtom)
     const router = useRouter()
     const clientId = getClientId()
     const { mutate: joinRoom } = useNakamaJoinWatchRoom()
+
+    // Am I the effective controller (the one driving)? The controller must NEVER follow its
+    // own action — it would re-launch the stream it just started (room.lastPlayback reflects
+    // the controller's own start), flashing the screen + hammering the CDN with restarts.
+    const amController = React.useMemo(() => {
+        if (!room?.participants || !room.controllerKey) return false
+        const myEntry = Object.entries(room.participants).find(([, p]) => p.clientId === clientId)
+        return !!myEntry && myEntry[0] === room.controllerKey
+    }, [room, clientId])
 
     // The media+episode we last followed, so a burst of syncs doesn't relaunch it.
     const followedKeyRef = React.useRef("")
 
     const maybeFollow = React.useCallback((p: Nakama_RoomPlaybackStatusPayload | null) => {
         if (!p) return
+        // The controller drives — never follow our own action.
+        if (amController) return
         // Controller ended the episode → stop ours too.
         if (p.stopped) {
             followedKeyRef.current = ""
@@ -129,7 +141,7 @@ export function useWatchRoomFollow() {
             pathname: "/(app)/entry/anime/[id]",
             params: { id: String(p.mediaId), initialView: "torrentstream" },
         })
-    }, [activeSource, bumpTerminate, router, setPlaybackIntent])
+    }, [amController, activeSource, bumpTerminate, router, setPlaybackIntent])
 
     // Live control actions from the controller.
     useRoomWsListener<Nakama_RoomPlaybackStatusPayload>(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_SYNC, maybeFollow)
@@ -150,18 +162,17 @@ export function useWatchRoomFollow() {
         }
     })
 
-    // Reconnect: a new websocket gives a fresh clientId. Re-join the current room so the server
-    // remaps our driving client (sync reaches us again) and the host reclaims control. Empty
-    // password is fine — we're already a member, so it isn't re-checked.
-    const prevClientIdRef = React.useRef(clientId)
+    // Reconnect: the provider makes a NEW WebSocket on every reconnect (the clientId is stable).
+    // A brief drop made the server promote control away; re-join the current room on the new
+    // socket to reclaim control for the host (and resync after any events lost while down).
+    // Empty password is fine — we're already a member, so it isn't re-checked.
+    const rejoinedSocketRef = React.useRef<WebSocket | null>(null)
     React.useEffect(() => {
-        const prev = prevClientIdRef.current
-        prevClientIdRef.current = clientId
-        if (prev && clientId && prev !== clientId && room) {
-            joinRoom({ roomId: room.id, password: "", clientId }, {
-                onSuccess: (updated) => { if (updated) setRoom(updated) },
-            })
-        }
+        if (!socket || rejoinedSocketRef.current === socket || !room) return
+        rejoinedSocketRef.current = socket
+        joinRoom({ roomId: room.id, password: "", clientId }, {
+            onSuccess: (updated) => { if (updated) setRoom(updated) },
+        })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [clientId])
+    }, [socket, room?.id])
 }
