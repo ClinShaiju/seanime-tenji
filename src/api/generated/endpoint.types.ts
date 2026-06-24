@@ -618,6 +618,7 @@ export type DebridStartStream_Variables = {
     clientId: string
     batchEpisodeFiles?: HibikeTorrent_BatchEpisodeFiles
     preload?: boolean
+    prewarmMetadata?: boolean
 }
 
 /**

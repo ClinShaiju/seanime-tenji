@@ -788,7 +788,8 @@ function PlayerScreenInner() {
     // the background over the WHOLE current episode (was 80%, which left it only ~20% of runtime).
     // The server caches the resolved stream URL; the real next-episode start (debridstream-auto-
     // select) then reuses it. Gated on the server's "Preload next episode" setting and the
-    // auto-select autoplay path.
+    // auto-select autoplay path. prewarmMetadata also warms the MKV metadata/CDN for an instant
+    // first frame (server bounds CDN load via cdnWarmLimiter) — this is the highest-certainty target.
     const serverStatus = useServerStatus()
     const { mutate: preloadNextDebridStream } = useDebridStartStream()
     const preloadFiredForSourceRef = React.useRef<string | null>(null)
@@ -812,6 +813,7 @@ function PlayerScreenInner() {
             playbackType: "externalPlayerLink",
             clientId: getClientIdentity().clientId,
             preload: true,
+            prewarmMetadata: true,
         })
     }, [
         canAutoAdvance,
