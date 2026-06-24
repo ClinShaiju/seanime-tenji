@@ -11,7 +11,7 @@ import {
     SaveDebridSettings_Variables,
 } from "@/api/generated/endpoint.types"
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
-import { Debrid_TorrentInfo, Debrid_TorrentItem, DebridClient_FilePreview, Models_DebridSettings } from "@/api/generated/types"
+import { Debrid_TorrentInfo, Debrid_TorrentItem, DebridClient_FilePreview, DebridClient_PrewarmStatusItem, Models_DebridSettings } from "@/api/generated/types"
 import { toast } from "@/lib/utils/toast"
 import { useQueryClient } from "@tanstack/react-query"
 
@@ -137,5 +137,19 @@ export function useDebridCancelStream() {
         onSuccess: async () => {
             toast.success("Stream cancelled")
         },
+    })
+}
+
+// useDebridPrewarmStatus returns the set of prewarmed episodes for the current user, so the UI can
+// badge episodes that will play instantly. Polled; returns [] when debrid/preload is off. Pass
+// enabled (caller reads serverStatus) to avoid polling when debrid is disabled.
+export function useDebridPrewarmStatus(enabled: boolean) {
+    return useServerQuery<Array<DebridClient_PrewarmStatusItem>>({
+        endpoint: API_ENDPOINTS.DEBRID.DebridGetPrewarmStatus.endpoint,
+        method: API_ENDPOINTS.DEBRID.DebridGetPrewarmStatus.methods[0],
+        queryKey: [API_ENDPOINTS.DEBRID.DebridGetPrewarmStatus.key],
+        enabled: enabled,
+        refetchInterval: 30_000,
+        gcTime: 60_000,
     })
 }

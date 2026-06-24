@@ -2,6 +2,7 @@ import { Anime_Episode, Continuity_WatchHistory } from "@/api/generated/types"
 import { getEpisodePercentageComplete } from "@/api/hooks/continuity.hooks"
 import { useServerStatus } from "@/atoms/server.atoms"
 import { EpisodeCard } from "@/components/features/anime/episode-card"
+import { PrewarmBadge } from "@/components/features/anime/prewarm-badge"
 import { getEpisodeSpoilerState } from "@/lib/anime-spoilers"
 import React from "react"
 import { ActivityIndicator, Dimensions, FlatList, ListRenderItemInfo, Text, View } from "react-native"
@@ -89,7 +90,13 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
                     onEpisodePress?.(item)
                 }}
                 disabled={disabled}
-                thumbnailOverlay={isLoading ? <EpisodeLoadingBadge /> : undefined}
+                thumbnailOverlay={isLoading
+                    ? <EpisodeLoadingBadge />
+                    : <PrewarmBadge
+                        mediaId={item.baseAnime?.id ?? mediaId}
+                        episodeNumber={item.episodeNumber}
+                        className="absolute right-2 top-2"
+                    />}
                 animeTitle={animeTitle}
             />
         )

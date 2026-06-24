@@ -689,6 +689,11 @@ export const API_ENDPOINTS = {
             methods: ["POST"],
             endpoint: "/api/v1/debrid/stream/cancel",
         },
+        DebridGetPrewarmStatus: {
+            key: "DEBRID-debrid-get-prewarm-status",
+            methods: ["GET"],
+            endpoint: "/api/v1/debrid/stream/prewarm-status",
+        },
     },
     DIRECTORY_SELECTOR: {
         /**

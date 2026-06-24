@@ -9,6 +9,7 @@ import {
 import { useGetMangaLatestChapterNumbersMap } from "@/api/hooks/manga.hooks"
 import { useAnimeLibraryEntryDataValue, useMediaEntryListDataValue } from "@/atoms/anilist-collection.atoms"
 import { useServerStatus } from "@/atoms/server.atoms"
+import { PrewarmBadge } from "@/components/features/anime/prewarm-badge"
 import { MediaEntryQuickInfoSheet } from "@/components/features/media/media-entry-quick-info-sheet"
 import { SeaImage } from "@/components/shared/sea-image"
 import { getMangaEntryLatestChapterNumber, useStoredMangaSelectionState } from "@/hooks/use-manga-chapters"
@@ -310,6 +311,16 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
                         )}
 
                         {showAnimeLibraryBadge ? <AnimeLibraryBadge fileCount={animeLibraryFileCount} /> : null}
+
+                        {/* Prewarm fire badge — top-right, only when no library badge is shown there
+                         (debrid-streaming case). Self-hides unless this show's next-up is prewarmed. */}
+                        {type === "anime" && !showAnimeLibraryBadge && (
+                            <PrewarmBadge
+                                mediaId={media.id}
+                                episodeNumber={((listData as Anime_EntryListData | undefined)?.progress ?? 0) + 1}
+                                className="absolute right-1 top-1 z-10"
+                            />
+                        )}
                     </View>
 
                     <Text

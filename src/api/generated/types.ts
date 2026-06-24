@@ -2281,6 +2281,18 @@ export type DebridClient_FilePreview = {
 }
 
 /**
+ * - Filepath: internal/debrid/client/prewarm_db.go
+ * - Filename: prewarm_db.go
+ * - Package: debrid_client
+ */
+export type DebridClient_PrewarmStatusItem = {
+    mediaId: number
+    episodeNumber: number
+    anidbEpisode: string
+    metadata: boolean
+}
+
+/**
  * - Filepath: internal/debrid/client/stream.go
  * - Filename: stream.go
  * - Package: debrid_client
