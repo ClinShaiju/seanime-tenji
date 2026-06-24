@@ -21,7 +21,7 @@ function entryTitle(e: Anime_GroupedEntry): string {
 
 export function SeasonSwitcher({ mediaId }: { mediaId: number }) {
     const serverStatus = useServerStatus()
-    const groupSeasons = !!serverStatus?.settings?.library?.groupSeasons
+    const groupSeasons = !!serverStatus?.themeSettings?.groupSeasons
     const { data: franchise } = useGetAnimeFranchise(mediaId, groupSeasons)
     const [mergedSeason, setMergedSeason] = useAtom(__entry_mergedSeasonAtom)
     const [open, setOpen] = React.useState(false)

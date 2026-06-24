@@ -1,9 +1,32 @@
-import { ConfigContext, ExpoConfig } from "expo/config"
+// `import type` (not a value import) — Node 23 rejects the runtime directory-import
+// of "expo/config", which breaks `eas`/expo config loading. These are types only.
+import type { ConfigContext, ExpoConfig } from "expo/config"
+
+// Fork: OTA runs through EAS Update under the @cvslinc/seanime-app project (not
+// upstream seanime.app). Paste the project ID from `npx eas-cli project:info`
+// (or the EAS dashboard) below; env var overrides it. Empty => OTA disabled.
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || "112362af-08e4-4daa-a481-fc214e9fe092"
+
+const updates: ExpoConfig["updates"] = EAS_PROJECT_ID
+    ? {
+        enabled: true,
+        url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+        checkAutomatically: "NEVER",
+        fallbackToCacheTimeout: 0,
+        // Pin the OTA channel in the build itself. `eas build` would inject this
+        // from eas.json, but locally-built IPAs (no Apple Dev account needed for
+        // sideloading) won't — so set it here. Updates land via `eas update --channel stable`.
+        requestHeaders: {
+            "expo-channel-name": "stable",
+        },
+    }
+    : { enabled: false }
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
     ...config,
     name: "Seanime",
     slug: "seanime-app",
+    owner: "cvslinc",
     version: "0.1.21",
     orientation: "portrait",
     icon: "./src/assets/images/icon.png",
@@ -13,13 +36,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     runtimeVersion: {
         policy: "appVersion",
     },
-    updates: {
-        enabled: true,
-        url: "https://seanime.app/api/ota/manifest",
-        checkAutomatically: "NEVER",
-        fallbackToCacheTimeout: 0,
-        requestHeaders: {
-            "expo-channel-name": "stable",
+    updates,
+    extra: {
+        eas: {
+            projectId: EAS_PROJECT_ID || undefined,
         },
     },
     ios: {
