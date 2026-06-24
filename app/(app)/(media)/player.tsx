@@ -179,6 +179,9 @@ function PlayerScreenInner() {
 
     React.useEffect(() => {
         if (!source) return
+        // Watch-room followers let the room's position sync place them (no self-restore) —
+        // otherwise our own continuity position fights the controller's synced position.
+        if (roomSync.isRoomFollower) return
         if (resumeAppliedForRef.current === source.id) return
         if (state.status !== "ready" || state.paused) return
 

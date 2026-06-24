@@ -19,6 +19,8 @@ import { currentWatchRoomAtom, getClientId, NAKAMA_ROOM_EVENTS, useRoomWsListene
 const APPLY_ECHO_WINDOW_MS = 2500 // window after applying a remote state in which a matching local event is treated as its echo
 const APPLY_SEEK_THRESHOLD = 0.75 // apply a remote seek only when off by more than this (avoids jitter)
 const LOCAL_SEEK_THRESHOLD = 1.5  // a position jump exceeding wall-time + this = a local seek
+const HEARTBEAT_MS = 2000 // how often the active driver re-broadcasts its position
+const HEARTBEAT_DRIFT = 2.0 // a follower only re-seeks on a heartbeat when off by more than this
 
 type RoomPlaybackSync = {
     roomId: string
@@ -28,6 +30,7 @@ type RoomPlaybackSync = {
     mediaId: number
     episodeNumber: number
     stopped?: boolean
+    heartbeat?: boolean
     audioTrack?: number | null
     subtitleTrack?: number | null
 }
@@ -82,10 +85,14 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
     // drop the echo events the apply itself fires (state-matched, not a blind time window, so
     // a late event from buffering doesn't leak back out and a genuine action passes through).
     const lastAppliedRef = React.useRef<{ paused: boolean, currentTime: number, at: number } | null>(null)
+    // After we emit a stop, the player teardown flips paused/position and would emit a stray
+    // status that makes followers re-follow (reopen). Suppress emits briefly after a stop.
+    const suppressEmitUntilRef = React.useRef(0)
 
     // ---- Emit local control actions ----
     const emitNow = React.useCallback(() => {
         if (!room || !inRoom || !canControl) return
+        if (Date.now() < suppressEmitUntilRef.current) return
         // Drop the echo of a state we were just told to be in; a genuine local action diverges.
         const la = lastAppliedRef.current
         if (la && (Date.now() - la.at) < APPLY_ECHO_WINDOW_MS
@@ -140,6 +147,9 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
     // theirs down too (handled app-wide in useWatchRoomFollow). Mirror of the start emit.
     const emitStop = React.useCallback(() => {
         if (!room || !inRoom || !canControl) return
+        // Block the stray play/pause emit the teardown is about to fire — otherwise followers
+        // get a non-stop status AFTER the stop and re-follow (reopen the stream).
+        suppressEmitUntilRef.current = Date.now() + 2000
         send(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_STATUS, {
             roomId: room.id,
             stopped: true,
@@ -153,6 +163,31 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         })
     }, [room, inRoom, canControl, send])
 
+    // Heartbeat: the active driver re-broadcasts its position every couple seconds so followers
+    // reconcile drift and stay in sync during steady playback. A ref keeps the latest state so
+    // the interval stays stable (no reset every tick).
+    const heartbeatRef = React.useRef<() => void>(() => {})
+    heartbeatRef.current = () => {
+        if (!room || !inRoom || !(canControl && amController)) return
+        if (Date.now() < suppressEmitUntilRef.current) return
+        send(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_STATUS, {
+            roomId: room.id,
+            paused: state.paused,
+            currentTime: state.currentTime,
+            duration: isFinite(state.duration) ? state.duration : 0,
+            mediaId: source?.mediaId ?? 0,
+            episodeNumber: source?.episodeNumber ?? 0,
+            aniDbEpisode: source?.episode?.aniDBEpisode ?? "",
+            streamType: streamTypeFromKind(source?.streamKind),
+            heartbeat: true,
+        })
+    }
+    React.useEffect(() => {
+        if (!(canControl && amController)) return
+        const id = setInterval(() => heartbeatRef.current(), HEARTBEAT_MS)
+        return () => clearInterval(id)
+    }, [canControl, amController])
+
     // ---- Apply incoming sync ----
     useRoomWsListener<RoomPlaybackSync>(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_SYNC, p => {
         if (!p || !inRoom) return
@@ -164,7 +199,10 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         // an echo and not re-broadcast (state-matched, robust to late events from buffering).
         lastAppliedRef.current = { paused: p.paused, currentTime: p.currentTime, at: Date.now() }
 
-        if (isFinite(p.currentTime) && Math.abs(state.currentTime - p.currentTime) > APPLY_SEEK_THRESHOLD) {
+        // Heartbeats only correct large drift (steady playback wanders a little); discrete
+        // seeks apply precisely.
+        const seekThreshold = p.heartbeat ? HEARTBEAT_DRIFT : APPLY_SEEK_THRESHOLD
+        if (isFinite(p.currentTime) && Math.abs(state.currentTime - p.currentTime) > seekThreshold) {
             player.seekTo(p.currentTime)
         }
         if (p.paused && !state.paused) {

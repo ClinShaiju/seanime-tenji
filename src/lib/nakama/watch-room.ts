@@ -97,13 +97,17 @@ export function useWatchRoomFollow() {
     const clientId = getClientId()
     const { mutate: joinRoom } = useNakamaJoinWatchRoom()
 
-    // Am I the effective controller (the one driving)? The controller must NEVER follow its
-    // own action — it would re-launch the stream it just started (room.lastPlayback reflects
-    // the controller's own start), flashing the screen + hammering the CDN with restarts.
-    const amController = React.useMemo(() => {
+    // Only the ACTIVE DRIVER (can control AND is the controller) skips following its own
+    // action. A member merely promoted to controllerKey but unable to control (e.g. after a
+    // host blip) still has no stream, so it must follow — guarding on amController alone would
+    // wrongly freeze it out (this was why a Tenji peer never started when Denshi hosted).
+    const driverGuard = React.useMemo(() => {
         if (!room?.participants || !room.controllerKey) return false
         const myEntry = Object.entries(room.participants).find(([, p]) => p.clientId === clientId)
-        return !!myEntry && myEntry[0] === room.controllerKey
+        if (!myEntry) return false
+        const [myKey, me] = myEntry
+        const canControl = !!me.isHost || !!me.canControl
+        return canControl && myKey === room.controllerKey
     }, [room, clientId])
 
     // The media+episode we last followed, so a burst of syncs doesn't relaunch it.
@@ -111,8 +115,8 @@ export function useWatchRoomFollow() {
 
     const maybeFollow = React.useCallback((p: Nakama_RoomPlaybackStatusPayload | null) => {
         if (!p) return
-        // The controller drives — never follow our own action.
-        if (amController) return
+        // The active driver never follows its own action.
+        if (driverGuard) return
         // Controller ended the episode → stop ours too.
         if (p.stopped) {
             followedKeyRef.current = ""
@@ -141,7 +145,7 @@ export function useWatchRoomFollow() {
             pathname: "/(app)/entry/anime/[id]",
             params: { id: String(p.mediaId), initialView: "torrentstream" },
         })
-    }, [amController, activeSource, bumpTerminate, router, setPlaybackIntent])
+    }, [driverGuard, activeSource, bumpTerminate, router, setPlaybackIntent])
 
     // Live control actions from the controller.
     useRoomWsListener<Nakama_RoomPlaybackStatusPayload>(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_SYNC, maybeFollow)
