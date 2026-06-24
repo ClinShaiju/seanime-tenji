@@ -1,6 +1,6 @@
 import { getClientIdentity } from "@/api/client/client-identity"
 import type { Nakama_RoomPlaybackStatusPayload, Nakama_WatchRoom } from "@/api/generated/types"
-import { useNakamaJoinWatchRoom } from "@/api/hooks/nakama.hooks"
+import { useNakamaJoinWatchRoom, useNakamaJoinWatchRoomStream } from "@/api/hooks/nakama.hooks"
 import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
 import { websocketAtom } from "@/atoms/websocket.atoms"
 import { currentPlaybackSourceAtom } from "@/lib/player"
@@ -28,6 +28,20 @@ export const currentWatchRoomAtom = atom<Nakama_WatchRoom | null>(null)
 // Bumped to ask the player to tear down (the controller stopped the episode, or the host
 // closed the room). The player screen watches this and runs its normal back/stop path.
 export const watchRoomTerminateSignalAtom = atom(0)
+
+// The roomId whose active stream this client has opted OUT of (closed/late-joined). While set,
+// the room's playback sync won't auto-open the player — a "Join room stream" button does.
+export const optedOutStreamRoomIdAtom = atom<string | null>(null)
+
+// isRoomDriver: is this client the active driver (can control AND is the controller)? The
+// driver feeds the room and never follows / never needs the join button.
+export function isRoomDriver(room: Nakama_WatchRoom | null, clientId: string): boolean {
+    if (!room?.participants || !room.controllerKey) return false
+    const e = Object.entries(room.participants).find(([, p]) => p.clientId === clientId)
+    if (!e) return false
+    const [key, me] = e
+    return (!!me.isHost || !!me.canControl) && key === room.controllerKey
+}
 
 export function getClientId(): string {
     return getClientIdentity().clientId
@@ -96,19 +110,10 @@ export function useWatchRoomFollow() {
     const router = useRouter()
     const clientId = getClientId()
     const { mutate: joinRoom } = useNakamaJoinWatchRoom()
+    const { mutate: joinStream } = useNakamaJoinWatchRoomStream()
+    const optedOutRoomId = useAtomValue(optedOutStreamRoomIdAtom)
 
-    // Only the ACTIVE DRIVER (can control AND is the controller) skips following its own
-    // action. A member merely promoted to controllerKey but unable to control (e.g. after a
-    // host blip) still has no stream, so it must follow — guarding on amController alone would
-    // wrongly freeze it out (this was why a Tenji peer never started when Denshi hosted).
-    const driverGuard = React.useMemo(() => {
-        if (!room?.participants || !room.controllerKey) return false
-        const myEntry = Object.entries(room.participants).find(([, p]) => p.clientId === clientId)
-        if (!myEntry) return false
-        const [myKey, me] = myEntry
-        const canControl = !!me.isHost || !!me.canControl
-        return canControl && myKey === room.controllerKey
-    }, [room, clientId])
+    const driverGuard = isRoomDriver(room, clientId)
 
     // The media+episode we last followed, so a burst of syncs doesn't relaunch it.
     const followedKeyRef = React.useRef("")
@@ -124,8 +129,10 @@ export function useWatchRoomFollow() {
             return
         }
         if (!p.mediaId || !p.episodeNumber) return
-        // Cross-instance rooms can only share debrid/torrent (not local files / online streams).
         if (p.streamType !== "debrid" && p.streamType !== "torrent") return
+        // Opted out of this room's stream (closed it, or joined while it was already live)?
+        // Don't auto-open — the "Join room stream" button does.
+        if (optedOutRoomId === p.roomId) return
         // Already playing this exact media+episode? The player sync handles position.
         if (activeSource?.mediaId === p.mediaId && activeSource?.episodeNumber === p.episodeNumber) {
             followedKeyRef.current = ""
@@ -134,27 +141,24 @@ export function useWatchRoomFollow() {
         const key = `${p.mediaId}:${p.episodeNumber}:${p.streamType}`
         if (followedKeyRef.current === key) return
         followedKeyRef.current = key
-        // Launch the same source: set the entry's playback intent + navigate to the entry
-        // screen, which auto-selects + opens the player (same path as next-episode autoplay).
-        setPlaybackIntent(createAnimeEntryPlaybackIntent({
-            kind: p.streamType === "debrid" ? "debridstream-auto-select" : "torrentstream-auto-select",
-            mediaId: p.mediaId,
-            episodeNumber: p.episodeNumber,
-        }))
-        router.push({
-            pathname: "/(app)/entry/anime/[id]",
-            params: { id: String(p.mediaId), initialView: "torrentstream" },
-        })
-    }, [driverGuard, activeSource, bumpTerminate, router, setPlaybackIntent])
+        if (p.streamType === "debrid") {
+            // Reuse the host's already-resolved link (no re-selection). The server starts the
+            // stream and emits the external-player URL, which session.ts navigates the player to.
+            joinStream({ roomId: p.roomId, clientId, playbackType: "externalPlayerLink" })
+        } else {
+            // Torrent: auto-select via the entry screen (link sharing is debrid-only).
+            setPlaybackIntent(createAnimeEntryPlaybackIntent({
+                kind: "torrentstream-auto-select", mediaId: p.mediaId, episodeNumber: p.episodeNumber,
+            }))
+            router.push({ pathname: "/(app)/entry/anime/[id]", params: { id: String(p.mediaId), initialView: "torrentstream" } })
+        }
+    }, [driverGuard, optedOutRoomId, activeSource, bumpTerminate, router, setPlaybackIntent, joinStream, clientId])
 
     // Live control actions from the controller.
     useRoomWsListener<Nakama_RoomPlaybackStatusPayload>(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_SYNC, maybeFollow)
 
-    // Late join / room-state refresh: follow the room's last action.
-    React.useEffect(() => {
-        if (room?.lastPlayback) maybeFollow(room.lastPlayback)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [room?.id, room?.lastPlayback?.mediaId, room?.lastPlayback?.episodeNumber, room?.lastPlayback?.stopped])
+    // NOTE: no late-join auto-open. Joining a room with a live stream is button-only (the
+    // "Join room stream" button) — only a live start while you're present auto-opens you.
 
     // Host closed the room → leave + stop playback.
     useRoomWsListener<string>(NAKAMA_ROOM_EVENTS.WATCH_ROOM_CLOSED, roomId => {
@@ -179,4 +183,36 @@ export function useWatchRoomFollow() {
         })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [socket, room?.id])
+}
+
+// useRoomStreamJoin powers the "Join room stream" button. canJoin is true when the room has a
+// live stream this client isn't already watching (and isn't driving). join() clears the opt-out
+// and starts — debrid reuses the host's shared link; torrent auto-selects via the entry screen.
+export function useRoomStreamJoin() {
+    const room = useAtomValue(currentWatchRoomAtom)
+    const activeSource = useAtomValue(currentPlaybackSourceAtom)
+    const setOptedOut = useSetAtom(optedOutStreamRoomIdAtom)
+    const setPlaybackIntent = useSetAtom(animeEntryPlaybackIntentAtom)
+    const { mutate: joinStream, isPending } = useNakamaJoinWatchRoomStream()
+    const router = useRouter()
+    const clientId = getClientId()
+
+    const mi = room?.currentMediaInfo
+    const watchingThis = activeSource?.mediaId === mi?.mediaId && activeSource?.episodeNumber === mi?.episodeNumber
+    const canJoin = !!room?.playbackActive && !!mi && !watchingThis && !isRoomDriver(room, clientId)
+
+    const join = React.useCallback(() => {
+        if (!room?.id || !mi) return
+        setOptedOut(null)
+        if (mi.streamType === "torrent") {
+            setPlaybackIntent(createAnimeEntryPlaybackIntent({
+                kind: "torrentstream-auto-select", mediaId: mi.mediaId, episodeNumber: mi.episodeNumber,
+            }))
+            router.push({ pathname: "/(app)/entry/anime/[id]", params: { id: String(mi.mediaId), initialView: "torrentstream" } })
+        } else {
+            joinStream({ roomId: room.id, clientId, playbackType: "externalPlayerLink" })
+        }
+    }, [room, mi, clientId, setOptedOut, setPlaybackIntent, router, joinStream])
+
+    return { canJoin, join, isPending }
 }

@@ -2,6 +2,7 @@ import { ServerDataWrapper } from "@/api/components/server-data-wrapper"
 import { useServerUrl } from "@/atoms/server.atoms"
 import { useDownloadQueueResumeService } from "@/lib/downloads/download-queue-resume-service"
 import { useDownloadSnapshotRefreshService, useOfflineSyncService, useServerLocalSyncService } from "@/lib/offline"
+import { RoomStreamJoinFab } from "@/components/features/nakama/room-stream-join-fab"
 import { useWatchRoomFollow, useWatchRoomLiveState } from "@/lib/nakama/watch-room"
 import { usePlayerEventListener } from "@/lib/player"
 import { Stack } from "expo-router"
@@ -47,6 +48,7 @@ export default function AppLayout() {
                 />
                 <Stack.Screen name="(media)" options={{ headerShown: false, freezeOnBlur: true }} />
             </Stack>
+            <RoomStreamJoinFab />
         </ServerDataWrapper>
     )
 }

@@ -20,7 +20,7 @@ const APPLY_ECHO_WINDOW_MS = 2500 // window after applying a remote state in whi
 const APPLY_SEEK_THRESHOLD = 0.75 // apply a remote seek only when off by more than this (avoids jitter)
 const LOCAL_SEEK_THRESHOLD = 1.5  // a position jump exceeding wall-time + this = a local seek
 const HEARTBEAT_MS = 2000 // how often the active driver re-broadcasts its position
-const HEARTBEAT_DRIFT = 2.0 // a follower only re-seeks on a heartbeat when off by more than this
+const HEARTBEAT_DRIFT = 1.0 // a follower re-seeks on a (server) heartbeat when off by more than this — keeps everyone within ~1s
 
 type RoomPlaybackSync = {
     roomId: string
@@ -194,6 +194,9 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         // A stop is handled app-wide (useWatchRoomFollow tears the player down); ignore it here
         // so we don't seek to 0 / pause an about-to-close player.
         if (p.stopped) return
+        // The active driver is the SOURCE of truth (it feeds the server) — it must not
+        // reconcile to its own echoed-back state.
+        if (canControl && amController) return
 
         // Record the state we're applying so the play/pause/seek it triggers is recognized as
         // an echo and not re-broadcast (state-matched, robust to late events from buffering).

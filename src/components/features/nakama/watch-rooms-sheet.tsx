@@ -13,10 +13,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Text } from "@/components/ui/text"
-import { currentWatchRoomAtom, getClientId, NAKAMA_ROOM_EVENTS, useRoomWsListener } from "@/lib/nakama/watch-room"
+import { currentWatchRoomAtom, getClientId, NAKAMA_ROOM_EVENTS, optedOutStreamRoomIdAtom, useRoomStreamJoin, useRoomWsListener } from "@/lib/nakama/watch-room"
 import { cn } from "@/lib/utils"
 import { Image } from "expo-image"
-import { useAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { Crown, Lock, Users } from "lucide-react-native"
 import React from "react"
 import { Pressable, View } from "react-native"
@@ -41,6 +41,7 @@ export function WatchRoomsSheet({ open, onOpenChange }: { open: boolean; onOpenC
 function DiscoveryPanel({ onJoined }: { onJoined: (room: NonNullable<ReturnType<typeof useNakamaJoinWatchRoom>["data"]>) => void }) {
     const { data: rooms, refetch } = useNakamaWatchRoomList()
     const join = useNakamaJoinWatchRoom()
+    const setOptedOut = useSetAtom(optedOutStreamRoomIdAtom)
 
     // Room-list changes are pushed pool-wide.
     useRoomWsListener(NAKAMA_ROOM_EVENTS.ROOMS_UPDATED, () => { void refetch() })
@@ -56,7 +57,13 @@ function DiscoveryPanel({ onJoined }: { onJoined: (room: NonNullable<ReturnType<
             {rooms?.map(room => (
                 <RoomCard key={room.id} room={room} joining={join.isPending} onJoin={password => {
                     join.mutate({ roomId: room.id, password: password ?? "", clientId: getClientId() }, {
-                        onSuccess: r => { if (r) onJoined(r) },
+                        onSuccess: r => {
+                            if (!r) return
+                            // Joining a room that already has a live stream is button-only (don't
+                            // force-open): pre-opt-out so the heartbeat doesn't auto-pull us in.
+                            setOptedOut(r.playbackActive ? r.id : null)
+                            onJoined(r)
+                        },
                     })
                 }} />
             ))}
@@ -149,6 +156,8 @@ function InRoomPanel({ onLeft }: { onLeft: () => void }) {
     const setControl = useNakamaSetWatchRoomControl()
     const setForceTracks = useNakamaSetWatchRoomForceTracks()
     const setAutoSkip = useNakamaSetWatchRoomAutoSkip()
+    const setOptedOut = useSetAtom(optedOutStreamRoomIdAtom)
+    const roomStreamJoin = useRoomStreamJoin()
     const clientId = getClientId()
 
     if (!room) return null
@@ -170,12 +179,18 @@ function InRoomPanel({ onLeft }: { onLeft: () => void }) {
                     onPress={() => leave.mutate({ roomId: room.id }, {
                         // Always drop local room state — the leave is idempotent server-side, and
                         // if the room is already gone (host closed it) we still want out.
-                        onSuccess: () => onLeft(),
-                        onError: () => onLeft(),
+                        onSuccess: () => { setOptedOut(null); onLeft() },
+                        onError: () => { setOptedOut(null); onLeft() },
                     })}>
                     <Text>Leave</Text>
                 </Button>
             </View>
+
+            {roomStreamJoin.canJoin && (
+                <Button disabled={roomStreamJoin.isPending} onPress={roomStreamJoin.join}>
+                    <Text>{roomStreamJoin.isPending ? "Joining..." : "Join room stream"}</Text>
+                </Button>
+            )}
 
             {/* Members */}
             <Text className="text-muted-foreground text-xs uppercase mt-1">Members ({entries.length})</Text>

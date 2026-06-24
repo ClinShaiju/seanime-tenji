@@ -4566,6 +4566,10 @@ export type Nakama_WatchRoom = {
     autoSkipVotesOff: number
     createdAt?: string
     /**
+     * is a stream currently running in the room (drives the "join stream" UI)
+     */
+    playbackActive: boolean
+    /**
      * sha256 hex of the password; empty = open room
      */
     passwordHash: string

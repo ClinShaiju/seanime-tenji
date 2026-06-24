@@ -37,14 +37,14 @@ import { useContinuitySync } from "@/lib/player/use-continuity-sync"
 import { useDebridReconnectResume } from "@/lib/player/debrid-reconnect"
 import { useMpvPlayer } from "@/lib/player/use-mpv-player"
 import { useWatchRoomSync } from "@/lib/nakama/use-watch-room-sync"
-import { watchRoomTerminateSignalAtom } from "@/lib/nakama/watch-room"
+import { currentWatchRoomAtom, optedOutStreamRoomIdAtom, watchRoomTerminateSignalAtom } from "@/lib/nakama/watch-room"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/utils/toast"
 import { useKeepAwake } from "expo-keep-awake"
 import { MpvPlayerView } from "expo-mpv-player"
 import * as NavigationBar from "expo-navigation-bar"
 import { useRouter } from "expo-router"
-import { useAtom, useAtomValue } from "jotai/react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai/react"
 import { SkipForward } from "lucide-react-native"
 import React from "react"
 import { ActivityIndicator, Dimensions, Platform, StatusBar, Text, useWindowDimensions, View } from "react-native"
@@ -606,12 +606,20 @@ function PlayerScreenInner() {
     })
 
     // navigation
+    const currentWatchRoom = useAtomValue(currentWatchRoomAtom)
+    const setOptedOutStreamRoom = useSetAtom(optedOutStreamRoomIdAtom)
     const handleBack = React.useCallback(() => {
-        // Controller leaving playback = "stop" for the whole room (mirror of start).
-        if (roomSync.amController) roomSync.emitStop()
+        if (roomSync.amController) {
+            // Controller leaving playback = "stop" for the whole room (mirror of start).
+            roomSync.emitStop()
+        } else if (roomSync.isRoomFollower && currentWatchRoom?.playbackActive) {
+            // A follower leaving the stream stays left: opt out so the room heartbeat doesn't
+            // re-open us. The "Join room stream" button brings it back.
+            setOptedOutStreamRoom(currentWatchRoom.id)
+        }
         player.stop()
         if (canGoBack()) back()
-    }, [back, canGoBack, player, roomSync])
+    }, [back, canGoBack, player, roomSync, currentWatchRoom, setOptedOutStreamRoom])
 
     // Remote teardown: the controller stopped the episode or the host closed the room. Tear
     // down without re-emitting (this isn't our own stop).
