@@ -3,7 +3,7 @@ import { useServerUrl } from "@/atoms/server.atoms"
 import { useDownloadQueueResumeService } from "@/lib/downloads/download-queue-resume-service"
 import { useDownloadSnapshotRefreshService, useOfflineSyncService, useServerLocalSyncService } from "@/lib/offline"
 import { RoomStreamJoinFab } from "@/components/features/nakama/room-stream-join-fab"
-import { useWatchRoomFollow, useWatchRoomLiveState } from "@/lib/nakama/watch-room"
+import { useWatchRoomFollow, useWatchRoomLiveState, useWsLatencyProbe } from "@/lib/nakama/watch-room"
 import { usePlayerEventListener } from "@/lib/player"
 import { Stack } from "expo-router"
 import { View } from "react-native"
@@ -15,6 +15,7 @@ function BackgroundServices() {
     useDownloadQueueResumeService()
     useWatchRoomLiveState() // keep currentWatchRoomAtom fresh while the player is open
     useWatchRoomFollow() // follow the controller into episodes + stop/close/reconnect
+    useWsLatencyProbe() // measure RTT so the sync can lead positions by network lag
     return null
 }
 

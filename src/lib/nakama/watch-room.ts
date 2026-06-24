@@ -8,6 +8,7 @@ import { toast } from "@/lib/utils/toast"
 import { useRouter } from "expo-router"
 import { atom, useAtomValue, useSetAtom } from "jotai"
 import React from "react"
+import { recordRtt } from "./ws-latency"
 
 // Same-instance watch rooms (pool + multi-room model). Mirrors seanime-web's
 // nakama-manager + nakama-room-sync, against Tenji's raw WebSocket (no per-component
@@ -102,6 +103,20 @@ export function useWatchRoomLiveState() {
             : false
         if (amMember) setRoom(room)
     })
+}
+
+// useWsLatencyProbe pings the server every few seconds and records the round-trip (the server echoes
+// the ping's timestamp in its pong) so the watch-room sync can lead positions by the network lag.
+// Tenji has no other ping loop. Mount once app-wide (alongside useWatchRoomLiveState).
+export function useWsLatencyProbe() {
+    const send = useRoomWsSender()
+    useRoomWsListener<{ timestamp?: number }>("pong", p => {
+        if (p && typeof p.timestamp === "number") recordRtt(Date.now() - p.timestamp)
+    })
+    React.useEffect(() => {
+        const id = setInterval(() => send("ping", { timestamp: Date.now() }), 5000)
+        return () => clearInterval(id)
+    }, [send])
 }
 
 // useWatchRoomFollow drives the cross-screen room reactions the player sync (which only runs

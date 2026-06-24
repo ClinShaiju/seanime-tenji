@@ -3,6 +3,7 @@ import type { MobilePlaybackSource, MobileStreamKind } from "@/lib/player/types"
 import { useAtomValue } from "jotai"
 import React from "react"
 import { currentWatchRoomAtom, getClientId, NAKAMA_ROOM_EVENTS, useRoomDebug, useRoomWsListener, useRoomWsSender } from "./watch-room"
+import { getHalfRttSeconds } from "./ws-latency"
 
 // Watch-room player sync for the native MPV player.
 //
@@ -19,13 +20,13 @@ import { currentWatchRoomAtom, getClientId, NAKAMA_ROOM_EVENTS, useRoomDebug, us
 const APPLY_ECHO_WINDOW_MS = 2500 // window after applying a remote state in which a matching local event is treated as its echo
 const APPLY_SEEK_THRESHOLD = 0.75 // apply a remote seek only when off by more than this (avoids jitter)
 const LOCAL_SEEK_THRESHOLD = 1.5  // a position jump exceeding wall-time + this = a local seek
-const HEARTBEAT_MS = 2000 // how often the active driver re-broadcasts its position
+const HEARTBEAT_MS = 1000 // how often the active driver re-broadcasts its position (re-anchors after seek/buffer)
 // Smooth-convergence tuning (followers only): instead of hard-seeking on every bit of drift
 // (which stutters), nudge MPV's speed a few percent to GLIDE back into sync. |drift|<DEADBAND =
 // normal; DEADBAND..HARD = speed 1+clamp(drift*GAIN, ±MAX) (eases in, never jumps); >HARD = snap.
 // MAX 0.05 = ±5% ≈ barely-perceptible pitch shift; the server fans fresh positions every 500ms so
 // steady-state drift stays small and the nudge is usually <2%.
-const SYNC_DEADBAND = 0.15
+const SYNC_DEADBAND = 0.08
 const HARD_SEEK_DRIFT = 0.6
 const NUDGE_GAIN = 0.12
 const NUDGE_MAX = 0.05
@@ -114,7 +115,7 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         const payload: RoomPlaybackSync & { aniDbEpisode: string; streamType: string } = {
             roomId: room.id,
             paused: state.paused,
-            currentTime: state.currentTime,
+            currentTime: state.currentTime + (state.paused ? 0 : getHalfRttSeconds()), // lead by our uplink lag while playing
             duration: isFinite(state.duration) ? state.duration : 0,
             mediaId: source?.mediaId ?? 0,
             episodeNumber: source?.episodeNumber ?? 0,
@@ -138,8 +139,11 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
     React.useEffect(() => {
         if (prevPaused.current === state.paused) return
         prevPaused.current = state.paused
+        // Buffering guard: a stall at a seek target flips paused as MPV rebuffers — don't broadcast
+        // those, only genuine toggles. The heartbeat carries the settled state once buffering clears.
+        if (state.status === "buffering" || state.status === "loading") return
         emitNow()
-    }, [state.paused, emitNow])
+    }, [state.paused, state.status, emitNow])
 
     // Emit on seek: detect a position jump that exceeds wall-clock progression.
     const lastTick = React.useRef({ pos: state.currentTime, wall: Date.now() })
@@ -183,7 +187,7 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         send(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_STATUS, {
             roomId: room.id,
             paused: state.paused,
-            currentTime: state.currentTime,
+            currentTime: state.currentTime + (state.paused ? 0 : getHalfRttSeconds()), // lead by our uplink lag while playing
             duration: isFinite(state.duration) ? state.duration : 0,
             mediaId: source?.mediaId ?? 0,
             episodeNumber: source?.episodeNumber ?? 0,
@@ -222,18 +226,21 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         // Discrete actions snap precisely; heartbeats converge SMOOTHLY via MPV speed (see tuning
         // constants) so steady playback doesn't stutter from constant re-seeks.
         let action = "none"
-        const drift = isFinite(p.currentTime) ? p.currentTime - state.currentTime : 0
+        // Lead the target by our own downlink latency while playing, so we land on the controller's
+        // TRUE current frame (it already led by its uplink). No lead while paused.
+        const target = isFinite(p.currentTime) ? p.currentTime + (p.paused ? 0 : getHalfRttSeconds()) : state.currentTime
+        const drift = target - state.currentTime
         const ad = Math.abs(drift)
         const setSpeedSafe = (s: number) => { if (Math.abs(state.speed - s) > 0.005) player.setSpeed(s) }
         if (!p.heartbeat) {
             if (ad > APPLY_SEEK_THRESHOLD) {
-                action = `seek->${p.currentTime.toFixed(1)}`
-                player.seekTo(p.currentTime)
+                action = `seek->${target.toFixed(1)}`
+                player.seekTo(target)
             }
             setSpeedSafe(1) // a real action -> normal speed
         } else if (ad > HARD_SEEK_DRIFT) {
-            action = `seek->${p.currentTime.toFixed(1)}`
-            player.seekTo(p.currentTime)
+            action = `seek->${target.toFixed(1)}`
+            player.seekTo(target)
             setSpeedSafe(1)
         } else if (ad > SYNC_DEADBAND) {
             const off = Math.max(-NUDGE_MAX, Math.min(NUDGE_MAX, drift * NUDGE_GAIN))
