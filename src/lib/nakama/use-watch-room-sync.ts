@@ -184,10 +184,16 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
     heartbeatRef.current = () => {
         if (!room || !inRoom || !(canControl && amController)) return
         if (Date.now() < suppressEmitUntilRef.current) return
+        // Buffering hold: a STALLED driver (rebuffering, not user-paused) must not anchor the room
+        // to its frozen position with paused=false — that drags followers backward once per
+        // heartbeat (the "constant pull-back"). Report the stall as a transient pause so followers
+        // HOLD instead of rewind; they resume when the buffer fills and paused flips back false.
+        const stalled = !state.paused && (state.status === "buffering" || state.status === "loading")
+        const effectivePaused = state.paused || stalled
         send(NAKAMA_ROOM_EVENTS.ROOM_PLAYBACK_STATUS, {
             roomId: room.id,
-            paused: state.paused,
-            currentTime: state.currentTime + (state.paused ? 0 : getHalfRttSeconds()), // lead by our uplink lag while playing
+            paused: effectivePaused,
+            currentTime: state.currentTime + (effectivePaused ? 0 : getHalfRttSeconds()), // lead by our uplink lag while playing
             duration: isFinite(state.duration) ? state.duration : 0,
             mediaId: source?.mediaId ?? 0,
             episodeNumber: source?.episodeNumber ?? 0,
@@ -215,9 +221,12 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         // A stop is handled app-wide (useWatchRoomFollow tears the player down); ignore it here
         // so we don't seek to 0 / pause an about-to-close player.
         if (p.stopped) return
-        // The active driver is the SOURCE of truth (it feeds the server) — it must not
-        // reconcile to its own echoed-back state.
-        if (canControl && amController) return
+        // NO local-controller guard. The server already excludes the sender from every discrete
+        // relay AND excludes the live driver from the position ticker, so a sync only ever arrives
+        // from ANOTHER member who is the current driver — never our own echo. Gating on the local
+        // amController atom was the Issue-A bug: control handoff broadcasts room-state only ONCE, so
+        // a missed/raced push left amController stale-true after a peer took control, and this client
+        // then ignored every sync from the new driver. Apply unconditionally; the source isn't us.
 
         // Record the state we're applying so the play/pause/seek it triggers is recognized as
         // an echo and not re-broadcast (state-matched, robust to late events from buffering).
