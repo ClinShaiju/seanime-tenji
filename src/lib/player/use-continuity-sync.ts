@@ -10,7 +10,7 @@ import type { MobilePlaybackSource, PlayerState } from "./types"
 
 const log = logger("continuity-sync")
 
-const CONTINUITY_UPDATE_INTERVAL_MS = 15_000 // every 15s
+const CONTINUITY_UPDATE_INTERVAL_MS = 5_000 // every 5s (close to the web/videocore cadence so resume stays "live")
 const COMPLETION_THRESHOLD = 0.85 // 85% watched = completed
 
 export function useContinuitySync(

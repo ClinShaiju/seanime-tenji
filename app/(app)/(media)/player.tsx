@@ -616,12 +616,13 @@ function PlayerScreenInner() {
     const currentWatchRoom = useAtomValue(currentWatchRoomAtom)
     const setOptedOutStreamRoom = useSetAtom(optedOutStreamRoomIdAtom)
     const handleBack = React.useCallback(() => {
-        if (roomSync.amController) {
-            // Controller leaving playback = "stop" for the whole room (mirror of start).
+        if (roomSync.amHost) {
+            // Only the HOST leaving playback = "stop" for the whole room (mirror of start).
             roomSync.emitStop()
-        } else if (roomSync.isRoomFollower && currentWatchRoom?.playbackActive) {
-            // A follower leaving the stream stays left: opt out so the room heartbeat doesn't
-            // re-open us. The "Join room stream" button brings it back.
+        } else if (currentWatchRoom?.playbackActive) {
+            // Any non-host leaving the stream (follower OR a non-host who was driving) stays left:
+            // opt out so the room heartbeat doesn't re-open us, and the host keeps watching. The
+            // "Join room stream" button brings it back.
             setOptedOutStreamRoom(currentWatchRoom.id)
         }
         player.stop()

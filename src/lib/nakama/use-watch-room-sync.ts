@@ -64,6 +64,7 @@ function streamTypeFromKind(kind: MobileStreamKind | undefined): string {
 export type WatchRoomGating = {
     inRoom: boolean
     amController: boolean
+    amHost: boolean
     isRoomFollower: boolean
     effectiveAutoSkip: boolean
     emitStop: () => void
@@ -160,7 +161,10 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
     // Emit a stop when the controller ends the episode (player teardown). Followers tear
     // theirs down too (handled app-wide in useWatchRoomFollow). Mirror of the start emit.
     const emitStop = React.useCallback(() => {
-        if (!room || !inRoom || !canControl) return
+        // Only the HOST stops the episode for everyone. A non-host closing (even one currently
+        // driving) must not tear down the host's stream — its close is a local opt-out (handled in
+        // the player's back handler).
+        if (!room || !inRoom || !amHost) return
         // Block the stray play/pause emit the teardown is about to fire — otherwise followers
         // get a non-stop status AFTER the stop and re-follow (reopen the stream).
         suppressEmitUntilRef.current = Date.now() + 2000
@@ -175,7 +179,7 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
             aniDbEpisode: "",
             streamType: "",
         })
-    }, [room, inRoom, canControl, send])
+    }, [room, inRoom, amHost, send])
 
     // Heartbeat: the active driver re-broadcasts its position every couple seconds so followers
     // reconcile drift and stay in sync during steady playback. A ref keeps the latest state so
@@ -247,9 +251,15 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
                 player.seekTo(target)
             }
             setSpeedSafe(1) // a real action -> normal speed
-        } else if (ad > HARD_SEEK_DRIFT) {
+        } else if (drift > HARD_SEEK_DRIFT) {
+            // We fell BEHIND the driver -> snap forward.
             action = `seek->${target.toFixed(1)}`
             player.seekTo(target)
+            setSpeedSafe(1)
+        } else if (drift < -HARD_SEEK_DRIFT) {
+            // The driver is far BEHIND us: it's frozen/rebuffering but still heartbeating paused:false.
+            // NEVER rewind to a stalled driver (the rubber-band) — keep playing; resync if it catches
+            // up. A deliberate controller rewind arrives as a DISCRETE seek (not a heartbeat) and snaps.
             setSpeedSafe(1)
         } else if (ad > SYNC_DEADBAND) {
             const off = Math.max(-NUDGE_MAX, Math.min(NUDGE_MAX, drift * NUDGE_GAIN))
@@ -279,5 +289,5 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
         }
     })
 
-    return { inRoom, amController, isRoomFollower: inRoom && !amController, effectiveAutoSkip, emitStop }
+    return { inRoom, amController, amHost, isRoomFollower: inRoom && !amController, effectiveAutoSkip, emitStop }
 }
