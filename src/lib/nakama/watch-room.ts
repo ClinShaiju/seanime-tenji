@@ -226,7 +226,11 @@ export function useRoomStreamJoin() {
 
     const mi = room?.currentMediaInfo
     const watchingThis = activeSource?.mediaId === mi?.mediaId && activeSource?.episodeNumber === mi?.episodeNumber
-    const canJoin = !!room?.playbackActive && !!mi && !watchingThis && !isRoomDriver(room, clientId)
+    // No driver exclusion (parity with seanime-web): an actively-driving controller is already
+    // watching the room's media, so watchingThis hides the button for them anyway. Excluding the
+    // driver wedged a non-host driver who closed their player — they keep controllerKey (nothing
+    // hands it back on close), so the Join button never appeared until someone else acted.
+    const canJoin = !!room?.playbackActive && !!mi && !watchingThis
 
     const join = React.useCallback(() => {
         if (!room?.id || !mi) return
