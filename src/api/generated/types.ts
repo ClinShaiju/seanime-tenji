@@ -2076,7 +2076,7 @@ export type Continuity_WatchHistoryItemResponse = {
  * - Package: core
  */
 export type INTERNAL_FeatureFlags = {
-    MainServerTorrentStreaming: boolean
+    builtinTorrentClient: boolean
 }
 
 /**
@@ -3044,6 +3044,11 @@ export type Status_UserDebrid = {
     useServerDebrid: boolean
     provider: string
     hasApiKey: boolean
+    /**
+     * When false, the user's own auto-select profile drives the debrid auto-pick
+     * instead of the server's. ⚠️ Go decodes a missing bool as false — always send it.
+     */
+    useServerAutoSelect: boolean
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

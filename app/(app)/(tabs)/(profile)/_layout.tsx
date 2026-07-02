@@ -4,6 +4,7 @@ export default function ProfileLayout() {
     return (
         <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
+            <Stack.Screen name="account" />
             <Stack.Screen name="server-downloads" />
             <Stack.Screen name="unmatched" />
             <Stack.Screen name="download-settings" />

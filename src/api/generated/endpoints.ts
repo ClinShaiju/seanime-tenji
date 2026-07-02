@@ -32,6 +32,16 @@ export const API_ENDPOINTS = {
         },
         /**
          *  @description
+         *  Route returns the AniList tags for the user's raw anime collection.
+         *  Dedicated AniList tags query used by the lists page filters.
+         */
+        GetRawAnimeCollectionTags: {
+            key: "ANILIST-get-raw-anime-collection-tags",
+            methods: ["GET"],
+            endpoint: "/api/v1/anilist/collection/raw/tags",
+        },
+        /**
+         *  @description
          *  Route updates the user's list entry on Anilist.
          *  This is used to edit an entry on AniList.
          *  The "type" field is used to determine if the entry is an anime or manga and refreshes the collection accordingly.
@@ -379,13 +389,25 @@ export const API_ENDPOINTS = {
         List: {
             key: "USER-list",
             methods: ["GET"],
-            endpoint: "/api/v1/user",
+            endpoint: "/api/v1/user/list",
         },
         /** @description Admin: create a user. */
         Register: {
             key: "USER-register",
             methods: ["POST"],
             endpoint: "/api/v1/user/register",
+        },
+        /** @description Admin: delete a user (admins cannot be deleted). */
+        Delete: {
+            key: "USER-delete",
+            methods: ["DELETE"],
+            endpoint: "/api/v1/user/{id}",
+        },
+        /** @description Change the current user's password (verifies the old one). */
+        ChangePassword: {
+            key: "USER-change-password",
+            methods: ["POST"],
+            endpoint: "/api/v1/user/change-password",
         },
         /** @description Save the current user's per-user settings overrides. */
         SaveSettings: {
@@ -1200,6 +1222,16 @@ export const API_ENDPOINTS = {
             key: "MANGA-get-raw-anilist-manga-collection",
             methods: ["GET", "POST"],
             endpoint: "/api/v1/manga/anilist/collection/raw",
+        },
+        /**
+         *  @description
+         *  Route returns the AniList tags for the user's raw manga collection.
+         *  Dedicated AniList tags query used by the lists page filters.
+         */
+        GetRawAnilistMangaCollectionTags: {
+            key: "MANGA-get-raw-anilist-manga-collection-tags",
+            methods: ["GET"],
+            endpoint: "/api/v1/manga/anilist/collection/raw/tags",
         },
         /**
          *  @description

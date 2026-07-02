@@ -288,6 +288,13 @@ export default function ProfileScreen() {
                     {serverStatus?.serverHasPassword && serverStatus?.userRole ? (
                         <ProfileMenuSection title="Profile">
                             <ProfileMenuItem
+                                icon="key-outline"
+                                label="Account"
+                                detail="Password and per-user streaming overrides"
+                                onPress={() => router.push("/(app)/(tabs)/(profile)/account" as never)}
+                            />
+                            <RowDivider />
+                            <ProfileMenuItem
                                 icon="log-out-outline"
                                 label="Sign out"
                                 detail={`Signed in as ${serverStatus.userRole}`}

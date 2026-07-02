@@ -334,6 +334,21 @@ export type UserRegister_Variables = {
     role?: string
 }
 
+export type UserChangePassword_Variables = {
+    oldPassword: string
+    newPassword: string
+}
+
+// ⚠️ Go decodes missing bools as false — always send every field (useServerAutoSelect
+// in particular, or a partial PATCH silently resets it).
+export type UserSaveDebrid_Variables = {
+    useServerDebrid: boolean
+    provider: string
+    /** Blank = keep the existing key. */
+    apiKey: string
+    useServerAutoSelect: boolean
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // auto_downloader
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

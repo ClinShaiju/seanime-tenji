@@ -1,5 +1,5 @@
 import { useServerMutation } from "@/api/client/requests"
-import { UserLogin_Variables, UserLoginResponse } from "@/api/generated/endpoint.types"
+import { UserChangePassword_Variables, UserLogin_Variables, UserLoginResponse, UserSaveDebrid_Variables } from "@/api/generated/endpoint.types"
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
 import { useSetSessionToken } from "@/atoms/server.atoms"
 import { toast } from "@/lib/utils/toast"
@@ -24,6 +24,34 @@ export function useUserLogin() {
                 await queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.STATUS.GetStatus.key] })
                 await queryClient.invalidateQueries()
             }
+        },
+    })
+}
+
+export function useUserChangePassword() {
+    return useServerMutation<boolean, UserChangePassword_Variables>({
+        endpoint: API_ENDPOINTS.USER.ChangePassword.endpoint,
+        method: API_ENDPOINTS.USER.ChangePassword.methods[0],
+        mutationKey: [API_ENDPOINTS.USER.ChangePassword.key],
+        onSuccess: () => {
+            toast.success("Password changed")
+        },
+    })
+}
+
+// Saves the user's debrid override (shared server debrid vs their own provider/key).
+// The server writes every field unconditionally, so the form must always submit the
+// full shape (see UserSaveDebrid_Variables).
+export function useUserSaveDebrid() {
+    const queryClient = useQueryClient()
+
+    return useServerMutation<boolean, UserSaveDebrid_Variables>({
+        endpoint: API_ENDPOINTS.USER.SaveDebrid.endpoint,
+        method: API_ENDPOINTS.USER.SaveDebrid.methods[0],
+        mutationKey: [API_ENDPOINTS.USER.SaveDebrid.key],
+        onSuccess: async () => {
+            toast.success("Debrid settings saved")
+            await queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.STATUS.GetStatus.key] })
         },
     })
 }
