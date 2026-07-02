@@ -16,6 +16,11 @@ export type SeaError = Error & {
 
 const log = logger("requests")
 
+// Bound every request so a dying cellular connection can't hang a query forever (iOS lets
+// fetch sit 60s+ before the OS gives up, and React Query's retry never fires on a request
+// that never fails). Generous because debrid stream starts can legitimately take ~20s.
+const REQUEST_TIMEOUT_MS = 45_000
+
 type SeaQuery<D> = {
     serverUrl: string | null | undefined
     endpoint: string
@@ -110,6 +115,11 @@ export async function buildSeaQuery<T, D = unknown>(
         return Promise.reject(createSeaError("OFFLINE_MODE_ENABLED"))
     }
 
+    // AbortController + setTimeout instead of AbortSignal.timeout (not available on Hermes)
+    const timeoutController = new AbortController()
+    const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
+    options.signal = timeoutController.signal
+
     try {
         const response = await fetch(url.toString(), options)
         markServerReachable()
@@ -164,6 +174,9 @@ export async function buildSeaQuery<T, D = unknown>(
         }
         // Return the error message as rejected promise to be handled by tsquery
         return Promise.reject(seaError)
+    }
+    finally {
+        clearTimeout(timeoutId)
     }
 }
 
