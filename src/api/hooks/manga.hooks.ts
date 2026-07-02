@@ -51,6 +51,17 @@ export function useGetRawAnilistMangaCollection() {
     })
 }
 
+// mediaId -> AniList tag names for the user's raw manga collection (lists page tag filter).
+export function useGetRawAnilistMangaCollectionTags(enabled: boolean = true) {
+    return useServerQuery<Record<number, Array<string>>>({
+        endpoint: API_ENDPOINTS.MANGA.GetRawAnilistMangaCollectionTags.endpoint,
+        method: API_ENDPOINTS.MANGA.GetRawAnilistMangaCollectionTags.methods[0],
+        queryKey: [API_ENDPOINTS.MANGA.GetRawAnilistMangaCollectionTags.key],
+        enabled,
+        staleTime: 1000 * 60 * 10,
+    })
+}
+
 export function useGetMangaCollection() {
     return useServerQuery<Manga_Collection>({
         endpoint: API_ENDPOINTS.MANGA.GetMangaCollection.endpoint,

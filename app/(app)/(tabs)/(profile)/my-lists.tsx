@@ -7,8 +7,8 @@ import {
     AL_MangaCollection_MediaListCollection_Lists_Entries,
     AL_MediaListStatus,
 } from "@/api/generated/types"
-import { useGetRawAnimeCollection } from "@/api/hooks/anilist.hooks"
-import { useGetRawAnilistMangaCollection } from "@/api/hooks/manga.hooks"
+import { useGetRawAnimeCollection, useGetRawAnimeCollectionTags } from "@/api/hooks/anilist.hooks"
+import { useGetRawAnilistMangaCollection, useGetRawAnilistMangaCollectionTags } from "@/api/hooks/manga.hooks"
 import { useServerStatus } from "@/atoms/server.atoms"
 import { FilterButton } from "@/components/features/discover/search-filter-sheet"
 import { MediaEntryCard } from "@/components/features/media/media-entry-card"
@@ -19,7 +19,7 @@ import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refres
 import { useIsServerConnected } from "@/lib/offline"
 import { cn } from "@/lib/utils"
 import { useGroupedAnilistCollectionLists } from "@/lib/franchise/group-seasons"
-import { CollectionParams, DEFAULT_COLLECTION_PARAMS, filterEntriesByTitle, filterListEntries } from "@/lib/utils/filtering"
+import { CollectionParams, DEFAULT_COLLECTION_PARAMS, filterEntriesByTitle, filterListEntries, MediaTagMap } from "@/lib/utils/filtering"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import * as React from "react"
@@ -137,6 +137,7 @@ function buildSections(
     params: CollectionParams,
     showAdult: boolean | undefined,
     type: "anime" | "manga",
+    mediaTagMap?: MediaTagMap,
 ): SectionData[] {
     if (!lists) return []
 
@@ -147,7 +148,7 @@ function buildSections(
         entries: (AL_AnimeCollection_MediaListCollection_Lists_Entries | AL_MangaCollection_MediaListCollection_Lists_Entries)[] | undefined,
     ) {
         if (!entries?.length) return
-        let filtered = filterListEntries(entries, params, showAdult)
+        let filtered = filterListEntries(entries, params, showAdult, mediaTagMap)
         if (titleQuery.trim()) {
             filtered = filterEntriesByTitle(filtered, titleQuery) as typeof filtered
         }
@@ -284,6 +285,25 @@ export default function MyListsScreen() {
     const { data: animeCollection, isLoading: animeLoading } = useGetRawAnimeCollection()
     const { data: mangaCollection, isLoading: mangaLoading } = useGetRawAnilistMangaCollection()
 
+    // mediaId -> AniList tags for the visible collection (tag filter). Cheap + cached server-side.
+    const { data: animeTagMap } = useGetRawAnimeCollectionTags(type === "anime")
+    const { data: mangaTagMap } = useGetRawAnilistMangaCollectionTags(type === "manga")
+    const mediaTagMap = (type === "anime" ? animeTagMap : mangaTagMap) as MediaTagMap | undefined
+
+    // Frequency-sorted tag options, capped so the sheet stays usable (a collection can
+    // carry hundreds of distinct AniList tags).
+    const tagOptions = React.useMemo(() => {
+        if (!mediaTagMap) return []
+        const counts = new Map<string, number>()
+        for (const tags of Object.values(mediaTagMap)) {
+            for (const tag of tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+        }
+        return [...counts.entries()]
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+            .slice(0, 60)
+            .map(([tag]) => tag)
+    }, [mediaTagMap])
+
     const lists = type === "anime"
         ? animeCollection?.MediaListCollection?.lists
         : mangaCollection?.MediaListCollection?.lists
@@ -329,8 +349,8 @@ export default function MyListsScreen() {
     }, [type])
 
     // build sections
-    const sections = React.useMemo(() => buildSections(groupedLists, selectedList, titleQuery, filterParams, showAdult, type),
-        [groupedLists, selectedList, titleQuery, filterParams, showAdult, type])
+    const sections = React.useMemo(() => buildSections(groupedLists, selectedList, titleQuery, filterParams, showAdult, type, mediaTagMap),
+        [groupedLists, selectedList, titleQuery, filterParams, showAdult, type, mediaTagMap])
 
     const hasFilters = activeFilterCount > 0 || !!titleQuery.trim()
 
@@ -448,6 +468,7 @@ export default function MyListsScreen() {
                 params={filterParams}
                 type={type}
                 onApply={setFilterParams}
+                tagOptions={tagOptions}
             />
         </View>
     )

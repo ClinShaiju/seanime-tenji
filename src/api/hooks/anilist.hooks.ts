@@ -108,6 +108,17 @@ export function useGetRawAnimeCollection() {
     })
 }
 
+// mediaId -> AniList tag names for the user's raw anime collection (lists page tag filter).
+export function useGetRawAnimeCollectionTags(enabled: boolean = true) {
+    return useServerQuery<Record<number, Array<string>>>({
+        endpoint: API_ENDPOINTS.ANILIST.GetRawAnimeCollectionTags.endpoint,
+        method: API_ENDPOINTS.ANILIST.GetRawAnimeCollectionTags.methods[0],
+        queryKey: [API_ENDPOINTS.ANILIST.GetRawAnimeCollectionTags.key],
+        enabled,
+        staleTime: 1000 * 60 * 10,
+    })
+}
+
 export function useRefreshAnimeCollection() {
     const queryClient = useQueryClient()
 

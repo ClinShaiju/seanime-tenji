@@ -90,6 +90,8 @@ export const MANGA_COLLECTION_SORTING_OPTIONS: { label: string; value: MangaColl
 export type CollectionParams = {
     sorting: CollectionSorting
     genre: string[] | null
+    /** AniList tags (matched via the collection tag map, media objects don't carry tags). */
+    tags: string[] | null
     status: AL_MediaStatus | null
     format: AL_MediaFormat | null
     season: AL_MediaSeason | null
@@ -97,9 +99,13 @@ export type CollectionParams = {
     isAdult: boolean
 }
 
+/** mediaId -> AniList tag names, from the dedicated collection/raw/tags endpoint. */
+export type MediaTagMap = Record<number, string[]>
+
 export const DEFAULT_COLLECTION_PARAMS: CollectionParams = {
     sorting: "SCORE_DESC",
     genre: null,
+    tags: null,
     status: null,
     format: null,
     season: null,
@@ -171,6 +177,7 @@ export function filterListEntries<T extends AL_MangaCollection_MediaListCollecti
     entries: T | null | undefined,
     params: CollectionParams,
     showAdultContent: boolean | undefined,
+    mediaTagMap?: MediaTagMap,
 ) {
     if (!entries) return []
     let arr = [...entries]
@@ -197,6 +204,14 @@ export function filterListEntries<T extends AL_MangaCollection_MediaListCollecti
     if (!!arr && !!params.genre?.length) {
         arr = arr.filter(n => {
             return params.genre?.every(genre => n.media?.genres?.includes(genre))
+        })
+    }
+
+    // Filter by AniList tags (needs the collection tag map — media objects don't carry tags)
+    if (!!arr && !!params.tags?.length && !!mediaTagMap) {
+        arr = arr.filter(n => {
+            const tags = n.media?.id ? (mediaTagMap[n.media.id] ?? []) : []
+            return params.tags?.every(tag => tags.includes(tag))
         })
     }
 
@@ -260,6 +275,7 @@ export function filterCollectionEntries<T extends (Anime_LibraryCollectionEntry 
     entries: T | null | undefined,
     params: CollectionParams,
     showAdultContent: boolean | undefined,
+    mediaTagMap?: MediaTagMap,
 ) {
     if (!entries) return []
     let arr = [...entries]
@@ -286,6 +302,14 @@ export function filterCollectionEntries<T extends (Anime_LibraryCollectionEntry 
     if (!!arr && !!params.genre?.length) {
         arr = arr.filter(n => {
             return params.genre?.every(genre => n.media?.genres?.includes(genre))
+        })
+    }
+
+    // Filter by AniList tags (needs the collection tag map — media objects don't carry tags)
+    if (!!arr && !!params.tags?.length && !!mediaTagMap) {
+        arr = arr.filter(n => {
+            const tags = n.media?.id ? (mediaTagMap[n.media.id] ?? []) : []
+            return params.tags?.every(tag => tags.includes(tag))
         })
     }
 

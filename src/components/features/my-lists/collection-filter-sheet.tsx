@@ -22,6 +22,7 @@ export function countActiveCollectionFilters(params: CollectionParams, type: "an
     let count = 0
     if (params.sorting !== "SCORE_DESC") count++
     if (params.genre && params.genre.length > 0) count++
+    if (params.tags && params.tags.length > 0) count++
     if (params.status !== null) count++
     if (params.format !== null) count++
     if (params.season !== null && type === "anime") count++
@@ -35,6 +36,8 @@ type CollectionFilterSheetProps = {
     params: CollectionParams
     type: "anime" | "manga"
     onApply: (params: CollectionParams) => void
+    /** AniList tags present in the user's collection (frequency-sorted). Hides the field when empty. */
+    tagOptions?: string[]
 }
 
 export function CollectionFilterSheet({
@@ -43,6 +46,7 @@ export function CollectionFilterSheet({
     params,
     type,
     onApply,
+    tagOptions,
 }: CollectionFilterSheetProps) {
     const [draft, setDraft] = React.useState(params)
 
@@ -59,6 +63,15 @@ export function CollectionFilterSheet({
             genre: (d.genre ?? []).includes(genre)
                 ? (d.genre ?? []).filter(g => g !== genre)
                 : [...(d.genre ?? []), genre],
+        }))
+    }
+
+    function toggleTag(tag: string) {
+        setDraft(d => ({
+            ...d,
+            tags: (d.tags ?? []).includes(tag)
+                ? (d.tags ?? []).filter(t => t !== tag)
+                : [...(d.tags ?? []), tag],
         }))
     }
 
@@ -183,6 +196,16 @@ export function CollectionFilterSheet({
                         onToggle={toggleGenre}
                     />
                 </FormField>
+
+                {!!tagOptions?.length && (
+                    <FormField label="Tags" icon="pricetags-outline">
+                        <MultiToggle
+                            options={tagOptions.map(t => ({ value: t, label: t }))}
+                            values={draft.tags ?? []}
+                            onToggle={toggleTag}
+                        />
+                    </FormField>
+                )}
             </View>
         </SeaBottomSheet>
     )
