@@ -25,10 +25,10 @@ export function useDebridPrewarm() {
     const firedRef = React.useRef<Set<string>>(new Set())
 
     const prewarm = React.useCallback((
-        params: { mediaId?: number, episodeNumber?: number, aniDBEpisode?: string | null },
+        params: { mediaId?: number, episodeNumber?: number, aniDBEpisode?: string | null, prewarmMetadata?: boolean },
     ) => {
         if (!enabled) return
-        const { mediaId, episodeNumber, aniDBEpisode } = params
+        const { mediaId, episodeNumber, aniDBEpisode, prewarmMetadata } = params
         if (!mediaId || !episodeNumber || !aniDBEpisode) return
 
         const key = `${mediaId}|${episodeNumber}|${aniDBEpisode}`
@@ -44,6 +44,9 @@ export function useDebridPrewarm() {
             playbackType: "externalPlayerLink",
             clientId: getClientIdentity().clientId,
             preload: true,
+            // Tier-1 target: also warm the MKV metadata/CDN for an instant first frame
+            // (server bounds CDN load via cdnWarmLimiter).
+            prewarmMetadata: !!prewarmMetadata,
         })
     }, [enabled, startDebridStream])
 

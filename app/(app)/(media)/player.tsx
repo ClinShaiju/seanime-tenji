@@ -1,9 +1,8 @@
 import type { Anime_Episode } from "@/api/generated/types"
-import { getClientIdentity } from "@/api/client/client-identity"
 import { useGetContinuityWatchHistory } from "@/api/hooks/continuity.hooks"
-import { useDebridStartStream } from "@/api/hooks/debrid.hooks"
 import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
-import { useServerStatus, useServerUrl } from "@/atoms/server.atoms"
+import { useServerUrl } from "@/atoms/server.atoms"
+import { useDebridPrewarm } from "@/components/features/torrentstream/use-debrid-prewarm"
 import { NEXT_EPISODE_CONFIRM_PROGRESS_THRESHOLD, NEXT_EPISODE_CONFIRM_REMAINING_SECONDS } from "@/components/features/player/constants"
 import { clamp, formatTime, getChapterAtTime, getFillZoomScale, getSourceVideoAspectRatio } from "@/components/features/player/helpers"
 import { useAutoNextEpisode } from "@/components/features/player/hooks/use-auto-next-episode"
@@ -791,37 +790,28 @@ function PlayerScreenInner() {
     // select) then reuses it. Gated on the server's "Preload next episode" setting and the
     // auto-select autoplay path. prewarmMetadata also warms the MKV metadata/CDN for an instant
     // first frame (server bounds CDN load via cdnWarmLimiter) — this is the highest-certainty target.
-    const serverStatus = useServerStatus()
-    const { mutate: preloadNextDebridStream } = useDebridStartStream()
-    const preloadFiredForSourceRef = React.useRef<string | null>(null)
+    const { prewarm: prewarmNextDebridEpisode } = useDebridPrewarm()
     const PRELOAD_START_SECONDS = 3
 
     React.useEffect(() => {
-        if (!source || preloadFiredForSourceRef.current === source.id) return
+        if (!source) return
         if (source.nextEpisodeAction !== "debridstream-auto-select") return
         if (!prefs.autoNextEpisode || !canAutoAdvance) return
-        if (!serverStatus?.debridSettings?.preloadNextStream) return
         if (!nextEpisode?.aniDBEpisode) return
         if (state.duration <= 0 || state.currentTime < PRELOAD_START_SECONDS) return
 
-        preloadFiredForSourceRef.current = source.id
-        preloadNextDebridStream({
+        // The hook de-dupes per target and gates on the server's preload setting.
+        prewarmNextDebridEpisode({
             mediaId: source.mediaId,
             episodeNumber: nextEpisode.episodeNumber,
             aniDBEpisode: nextEpisode.aniDBEpisode,
-            autoSelect: true,
-            fileId: "",
-            playbackType: "externalPlayerLink",
-            clientId: getClientIdentity().clientId,
-            preload: true,
             prewarmMetadata: true,
         })
     }, [
         canAutoAdvance,
         nextEpisode,
         prefs.autoNextEpisode,
-        preloadNextDebridStream,
-        serverStatus?.debridSettings?.preloadNextStream,
+        prewarmNextDebridEpisode,
         source,
         state.currentTime,
         state.duration,
