@@ -73,6 +73,22 @@ function getHeaderValue(headers: unknown, name: string): string {
     return ""
 }
 
+type ClientIdentityListener = (identity: ClientIdentity) => void
+const identityListeners = new Set<ClientIdentityListener>()
+
+/**
+ * Notifies when the stored clientId VALUE changes (not on proof-only refreshes).
+ * The websocket provider uses this to reconnect when the HTTP plane re-issues a
+ * different id than the one the socket registered under — otherwise server events
+ * targeted at the new id (e.g. external-player-open-url) are silently lost.
+ */
+export function onClientIdentityChange(listener: ClientIdentityListener): () => void {
+    identityListeners.add(listener)
+    return () => {
+        identityListeners.delete(listener)
+    }
+}
+
 function saveClientIdentity(clientId: string, clientIdProof: string = ""): ClientIdentity {
     const normalizedClientId = normalizeValue(clientId)
     const normalizedProof = normalizeValue(clientIdProof)
@@ -80,6 +96,8 @@ function saveClientIdentity(clientId: string, clientIdProof: string = ""): Clien
     if (!normalizedClientId) {
         return readStoredClientIdentity()
     }
+
+    const previousClientId = normalizeValue(getStoredString(CLIENT_ID_STORAGE_KEY))
 
     setStoredString(CLIENT_ID_STORAGE_KEY, normalizedClientId)
 
@@ -89,10 +107,18 @@ function saveClientIdentity(clientId: string, clientIdProof: string = ""): Clien
         removeStoredKey(CLIENT_ID_PROOF_STORAGE_KEY)
     }
 
-    return {
+    const identity = {
         clientId: normalizedClientId,
         clientIdProof: normalizedProof,
     }
+
+    if (previousClientId !== normalizedClientId) {
+        for (const listener of identityListeners) {
+            listener(identity)
+        }
+    }
+
+    return identity
 }
 
 export function getClientIdentity(): ClientIdentity {

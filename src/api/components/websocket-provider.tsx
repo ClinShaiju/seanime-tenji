@@ -1,4 +1,4 @@
-import { addClientQueryParams, saveClientIdentityFromEvent } from "@/api/client/client-identity"
+import { addClientQueryParams, onClientIdentityChange, saveClientIdentityFromEvent } from "@/api/client/client-identity"
 import { getServerBaseUrl } from "@/api/client/server-url"
 import { useWebsocketEventRouter } from "@/api/components/websocket-event-router"
 import { useServerAuthToken, useServerUrl, useServerUrlProtocol, useSessionToken } from "@/atoms/server.atoms"
@@ -31,6 +31,10 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
 
     const retryCount = React.useRef(0)
     const retryTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+    // The client id THIS socket is registered under server-side (from the client-identity
+    // event the server pushes on connect). Targeted events are routed by this id.
+    const socketIdentityId = React.useRef("")
+    const lastIdentityReconnect = React.useRef(0)
 
     React.useEffect(() => {
         if (!serverUrl || manualOffline) {
@@ -100,6 +104,10 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
                     const message = JSON.parse(event.data) as { type?: string; payload?: unknown }
                     if (typeof message?.type !== "string") return
                     if (message.type === CLIENT_IDENTITY_EVENT) {
+                        const payload = message.payload as { clientId?: string } | null
+                        if (typeof payload?.clientId === "string" && payload.clientId) {
+                            socketIdentityId.current = payload.clientId
+                        }
                         saveClientIdentityFromEvent(message.payload)
                     }
                     dispatchWsMessage({ type: message.type, payload: message.payload })
@@ -115,6 +123,26 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
         if (!socket || socket.readyState === WebSocket.CLOSED) {
             connectWebSocket()
         }
+
+        // If the HTTP plane re-issues a DIFFERENT client id than the one this socket is
+        // registered under (identity proof re-sync after a server restart), the socket is
+        // orphaned: server events targeted at the settled id never reach it — debrid
+        // playback silently "does nothing". Reconnect so the socket re-registers under
+        // the settled id. Min 10s between identity-driven reconnects so a pathological
+        // id fight can't storm.
+        const unsubIdentity = onClientIdentityChange(identity => {
+            if (cancelled || !identity.clientId) return
+            if (!socketIdentityId.current || identity.clientId === socketIdentityId.current) return
+            const now = Date.now()
+            if (now - lastIdentityReconnect.current < 10_000) return
+            lastIdentityReconnect.current = now
+            logger("websocket-provider").info("Client identity changed; reconnecting WebSocket under the new id")
+            socketIdentityId.current = ""
+            const active = currentSocket ?? socket
+            if (active && (active.readyState === WebSocket.OPEN || active.readyState === WebSocket.CONNECTING)) {
+                active.close() // close handler schedules the reconnect
+            }
+        })
 
         // iOS kills the socket while backgrounded; on foreground, don't make the user
         // wait out the exponential backoff — reset it and reconnect immediately.
@@ -132,6 +160,7 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
 
         return () => {
             cancelled = true
+            unsubIdentity()
             appStateSub.remove()
             if (retryTimeout.current) {
                 clearTimeout(retryTimeout.current)
