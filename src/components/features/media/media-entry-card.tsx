@@ -8,7 +8,7 @@ import {
 } from "@/api/generated/types"
 import { useGetMangaLatestChapterNumbersMap } from "@/api/hooks/manga.hooks"
 import { useAnimeLibraryEntryDataValue, useMediaEntryListDataValue } from "@/atoms/anilist-collection.atoms"
-import { useServerStatus } from "@/atoms/server.atoms"
+import { useMediaCardDisplaySettings } from "@/atoms/server.atoms"
 import { PrewarmBadge } from "@/components/features/anime/prewarm-badge"
 import { MediaEntryQuickInfoSheet } from "@/components/features/media/media-entry-quick-info-sheet"
 import { SeaImage } from "@/components/shared/sea-image"
@@ -95,14 +95,14 @@ function AnimeEntryCardProgressBadge({
     nakamaLibraryData?: Anime_NakamaEntryLibraryData
     cardWidth: number
 }) {
-    const serverStatus = useServerStatus()
+    const { showAnimeUnwatchedCount } = useMediaCardDisplaySettings()
 
     const progress = listData?.progress ?? 0
     const isInLibrary = !!nakamaLibraryData?.mainFileCount || !!libraryData?.mainFileCount
     const unwatchedFromLibrary = nakamaLibraryData?.unwatchedCount ?? libraryData?.unwatchedCount ?? 0
     const unwatchedFromStreaming = Math.max(0, getCurrentAnimeEpisodeCount(media) - progress)
     const unwatchedCount = isInLibrary ? unwatchedFromLibrary : unwatchedFromStreaming
-    const shouldShowUnwatchedCount = (serverStatus?.themeSettings?.showAnimeUnwatchedCount ?? true)
+    const shouldShowUnwatchedCount = showAnimeUnwatchedCount
         && (listData?.status === "CURRENT" || listData?.status === "REPEATING")
         && unwatchedCount > 0
 
@@ -199,7 +199,7 @@ type MediaEntryCardProps<T extends "anime" | "manga"> = {
     hideLibraryBadge?: boolean
 }
 
-export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCardProps<T>) {
+function MediaEntryCardImpl<T extends "anime" | "manga">(props: MediaEntryCardProps<T>) {
 
     const {
         type,
@@ -216,7 +216,7 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
         hideLibraryBadge,
     } = props
 
-    const serverStatus = useServerStatus()
+    const displaySettings = useMediaCardDisplaySettings()
     const [sheetOpen, setSheetOpen] = React.useState(false)
     const syncedListData = useMediaEntryListDataValue(type, media.id)
     const syncedLibraryEntryData = useAnimeLibraryEntryDataValue(media.id)
@@ -246,8 +246,8 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
         setSheetOpen(true)
     }
 
-    const showAudienceScore = serverStatus?.settings?.anilist?.hideAudienceScore ? false : _showAudienceScore
-    const blurAdultContent = !!serverStatus?.settings?.anilist?.blurAdultContent && !!media.isAdult
+    const showAudienceScore = displaySettings.hideAudienceScore ? false : _showAudienceScore
+    const blurAdultContent = displaySettings.blurAdultContent && !!media.isAdult
     const posterHeight = cardWidth * (cardWidth < 150 ? 1.305 : 1.275)
     const showAnimeLibraryBadge = type === "anime" && !!libraryData && !hideLibraryBadge
     const animeLibraryFileCount = showAnimeLibraryBadge ? libraryData?.mainFileCount : undefined
@@ -348,3 +348,8 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
         </>
     )
 }
+
+// Rendered dozens of times per screen inside nested lists — memoized so a parent list
+// re-render doesn't re-render every visible card. Collection data is structurally shared
+// by React Query, so `media`/`listData` references are stable across refetches.
+export const MediaEntryCard = React.memo(MediaEntryCardImpl) as typeof MediaEntryCardImpl

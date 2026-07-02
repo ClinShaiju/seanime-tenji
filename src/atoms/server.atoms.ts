@@ -1,6 +1,6 @@
 import { Status } from "@/api/generated/types"
 import { createAtomStorage, getStoredJsonValue } from "@/atoms/storage"
-import { useAtomValue, useSetAtom } from "jotai"
+import { atom, useAtomValue, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 
 /**
@@ -87,4 +87,19 @@ export function useCurrentUser() {
 
 export function useSetServerStatus() {
     return useSetAtom(serverStatusAtom)
+}
+
+// Narrow per-field selectors for components rendered many times per screen (media cards).
+// Each derived atom holds a primitive, so subscribers only re-render when that specific
+// setting flips — not whenever the whole Status object is replaced.
+const hideAudienceScoreAtom = atom(get => !!get(serverStatusAtom)?.settings?.anilist?.hideAudienceScore)
+const blurAdultContentAtom = atom(get => !!get(serverStatusAtom)?.settings?.anilist?.blurAdultContent)
+const showAnimeUnwatchedCountAtom = atom(get => get(serverStatusAtom)?.themeSettings?.showAnimeUnwatchedCount ?? true)
+
+export function useMediaCardDisplaySettings() {
+    return {
+        hideAudienceScore: useAtomValue(hideAudienceScoreAtom),
+        blurAdultContent: useAtomValue(blurAdultContentAtom),
+        showAnimeUnwatchedCount: useAtomValue(showAnimeUnwatchedCountAtom),
+    }
 }
