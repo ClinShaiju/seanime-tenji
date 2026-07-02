@@ -12,7 +12,7 @@ import type {
 } from "@/api/generated/types"
 import { usePlaybackCancelManualTracking } from "@/api/hooks/playback_manager.hooks"
 import { useServerUrl } from "@/atoms/server.atoms"
-import { websocketAtom } from "@/atoms/websocket.atoms"
+import { addWsMessageHandler, WsServerMessage } from "@/atoms/websocket.atoms"
 import { logger } from "@/lib/utils/logger"
 import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
@@ -428,7 +428,6 @@ export function getTorrentStreamLoadingLabel(state: TorrentStreamLoadingState | 
  *
  */
 export function usePlayerEventListener() {
-    const socket = useAtomValue(websocketAtom)
     const serverUrl = useServerUrl()
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -476,7 +475,7 @@ export function usePlayerEventListener() {
     }, [playerIsOpen])
 
     React.useEffect(() => {
-            if (!socket || !serverUrl) return
+            if (!serverUrl) return
 
             const clearLoadingFallback = () => {
                 if (loadingFallbackTimer.current) {
@@ -507,17 +506,7 @@ export function usePlayerEventListener() {
                 setActiveStreamSession(null)
             }
 
-            const handleMessage = (event: WebSocketMessageEvent) => {
-                let parsed: unknown
-                try {
-                    parsed = JSON.parse(event.data as string)
-                }
-                catch (err) {
-                    log.warning("Failed to parse WebSocket message data:", err)
-                    return
-                }
-                const message = parsed as { type?: string; payload?: unknown }
-                if (typeof message?.type !== "string") return
+            const handleMessage = (message: WsServerMessage) => {
 
                 if (message.type === "torrentstream-state") {
                     log.info("WebSocket event received:", message.type, message.payload)
@@ -749,15 +738,15 @@ export function usePlayerEventListener() {
 
             }
 
-            socket.addEventListener("message", handleMessage)
+            const unsubscribe = addWsMessageHandler(handleMessage)
             return () => {
                 clearLoadingFallback()
                 clearCancelManualTrackingTimer()
-                socket.removeEventListener("message", handleMessage)
+                unsubscribe()
             }
         },
         [router, serverUrl, setActiveStreamSession, setDebridStreamState, setError, setIsPreparing, setLoadingMessage, setPendingInfo, setPlayerOpen,
-            setSource, setStreamSessionMode, setTorrentIsLoaded, setTorrentLoadingState, setTorrentLoadingTorrentName, setTorrentStatus, socket])
+            setSource, setStreamSessionMode, setTorrentIsLoaded, setTorrentLoadingState, setTorrentLoadingTorrentName, setTorrentStatus])
 }
 
 /**

@@ -2,7 +2,7 @@ import { getClientIdentity } from "@/api/client/client-identity"
 import type { Nakama_RoomPlaybackStatusPayload, Nakama_WatchRoom } from "@/api/generated/types"
 import { useNakamaJoinWatchRoom, useNakamaJoinWatchRoomStream } from "@/api/hooks/nakama.hooks"
 import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
-import { websocketAtom } from "@/atoms/websocket.atoms"
+import { useWsMessageListener, websocketAtom } from "@/atoms/websocket.atoms"
 import { currentPlaybackSourceAtom } from "@/lib/player"
 import { toast } from "@/lib/utils/toast"
 import { useRouter } from "expo-router"
@@ -20,6 +20,7 @@ export const NAKAMA_ROOM_EVENTS = {
     WATCH_ROOM_CLOSED: "nakama-watch-room-closed", // server->client: host closed the room; members stop
     ROOM_PLAYBACK_STATUS: "nakama-room-playback-status", // client->server: report a control action
     ROOM_PLAYBACK_SYNC: "nakama-room-playback-sync", // server->client: apply a controller's action
+    ROOM_RECONNECTED: "nakama-room-reconnected", // server->client: server-side room connection restored
     ROOM_DEBUG: "nakama-room-debug", // client->server: diagnostic line, logged server-side (no console on iOS)
 } as const
 
@@ -56,27 +57,9 @@ export function getClientId(): string {
     return getClientIdentity().clientId
 }
 
-// useRoomWsListener fires `onMessage` for every WS message of `type`. The callback is
-// kept in a ref so it always sees fresh state without re-subscribing.
-export function useRoomWsListener<T = unknown>(type: string, onMessage: (payload: T | null) => void) {
-    const socket = useAtomValue(websocketAtom)
-    const cb = React.useRef(onMessage)
-    cb.current = onMessage
-    React.useEffect(() => {
-        if (!socket) return
-        const handler = (event: WebSocketMessageEvent) => {
-            if (typeof event.data !== "string") return
-            try {
-                const msg = JSON.parse(event.data) as { type?: string; payload?: unknown }
-                if (msg?.type === type) cb.current((msg.payload ?? null) as T)
-            } catch {
-                // ignore non-JSON frames
-            }
-        }
-        socket.addEventListener("message", handler)
-        return () => socket.removeEventListener("message", handler)
-    }, [socket, type])
-}
+// useRoomWsListener fires `onMessage` for every WS message of `type`. Thin alias over the
+// provider's parse-once hub (kept so room code reads domain-level).
+export const useRoomWsListener = useWsMessageListener
 
 // useRoomWsSender returns a send(type, payload) that writes a {type, payload} frame — the
 // same shape the server's UnmarshalWebsocketClientEvent expects (it tags ClientID itself).
@@ -195,6 +178,15 @@ export function useWatchRoomFollow() {
             bumpTerminate(c => c + 1)
             toast.info("The host closed the room")
         }
+    })
+
+    // Server-side room reconnect (its connection dropped and came back while ours stayed up):
+    // re-join to resync any room state lost while it was down.
+    useRoomWsListener<{ roomId?: string }>(NAKAMA_ROOM_EVENTS.ROOM_RECONNECTED, p => {
+        if (!room || (p?.roomId && p.roomId !== room.id)) return
+        joinRoom({ roomId: room.id, password: "", clientId }, {
+            onSuccess: (updated) => { if (updated) setRoom(updated) },
+        })
     })
 
     // Reconnect: the provider makes a NEW WebSocket on every reconnect (the clientId is stable).

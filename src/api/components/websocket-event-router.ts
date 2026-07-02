@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
+import { addWsMessageHandler, WsServerMessage } from "@/atoms/websocket.atoms"
 import { requestServerLocalSync } from "@/lib/offline"
 import { logger } from "@/lib/utils/logger"
 import { toast } from "@/lib/utils/toast"
@@ -32,14 +33,17 @@ const WEBSOCKET_EVENTS = {
     PluginLoaded: "plugin-loaded",
     // sync events
     SyncLocalFinished: "sync-local-finished",
+    // server-side state changes made from another client
+    SettingsChanged: "settings-changed",
+    ServerLoggedOutAnilist: "server-logged-out-anilist",
     // generic invalidation
     InvalidateQueries: "invalidate-queries",
 } as const
 
-type WebsocketServerEvent = {
-    type: string
-    payload?: unknown
-}
+const settingsChangedKeys = [
+    API_ENDPOINTS.SETTINGS.GetSettings.key,
+    API_ENDPOINTS.STATUS.GetStatus.key,
+] as const
 
 const animeCollectionRefreshKeys = [
     API_ENDPOINTS.ANIME_COLLECTION.GetLibraryCollection.key,
@@ -110,38 +114,11 @@ async function invalidateQueryKeys(queryClient: ReturnType<typeof useQueryClient
     await Promise.all(queryKeys.map(queryKey => queryClient.invalidateQueries({ queryKey: [queryKey] })))
 }
 
-function parseWebsocketServerEvent(data: unknown): WebsocketServerEvent | null {
-    if (typeof data !== "string") {
-        return null
-    }
-
-    try {
-        const message = JSON.parse(data) as WebsocketServerEvent
-        if (typeof message?.type !== "string") {
-            return null
-        }
-        return message
-    }
-    catch (error) {
-        logger("websocket-event-router").warning("Failed to parse WebSocket message", error)
-        return null
-    }
-}
-
-export function useWebsocketEventRouter(socket: WebSocket | null) {
+export function useWebsocketEventRouter() {
     const queryClient = useQueryClient()
 
     React.useEffect(() => {
-        if (!socket) {
-            return
-        }
-
-        const handleMessage = async (event: WebSocketMessageEvent) => {
-            const message = parseWebsocketServerEvent(event.data)
-            if (!message) {
-                return
-            }
-
+        const handleMessage = async (message: WsServerMessage) => {
             switch (message.type) {
                 case WEBSOCKET_EVENTS.ErrorToast:
                     if (typeof message.payload === "string") {
@@ -200,6 +177,15 @@ export function useWebsocketEventRouter(socket: WebSocket | null) {
                     await invalidateQueryKeys(queryClient, syncLocalFinishedKeys)
                     requestServerLocalSync()
                     return
+                case WEBSOCKET_EVENTS.SettingsChanged:
+                    await invalidateQueryKeys(queryClient, settingsChangedKeys)
+                    return
+                case WEBSOCKET_EVENTS.ServerLoggedOutAnilist:
+                    await invalidateQueryKeys(queryClient, [API_ENDPOINTS.STATUS.GetStatus.key])
+                    if (typeof message.payload === "string" && message.payload) {
+                        toast.warning(message.payload)
+                    }
+                    return
                 case WEBSOCKET_EVENTS.InvalidateQueries:
                     if (Array.isArray(message.payload) && message.payload.every(item => typeof item === "string")) {
                         await invalidateQueryKeys(queryClient, message.payload)
@@ -212,10 +198,6 @@ export function useWebsocketEventRouter(socket: WebSocket | null) {
             }
         }
 
-        socket.addEventListener("message", handleMessage)
-
-        return () => {
-            socket.removeEventListener("message", handleMessage)
-        }
-    }, [queryClient, socket])
+        return addWsMessageHandler(message => void handleMessage(message))
+    }, [queryClient])
 }

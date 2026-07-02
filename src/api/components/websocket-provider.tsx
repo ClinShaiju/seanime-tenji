@@ -2,7 +2,7 @@ import { addClientQueryParams, saveClientIdentityFromEvent } from "@/api/client/
 import { getServerBaseUrl } from "@/api/client/server-url"
 import { useWebsocketEventRouter } from "@/api/components/websocket-event-router"
 import { useServerAuthToken, useServerUrl, useServerUrlProtocol, useSessionToken } from "@/atoms/server.atoms"
-import { websocketAtom, WebsocketContext } from "@/atoms/websocket.atoms"
+import { dispatchWsMessage, websocketAtom, WebsocketContext } from "@/atoms/websocket.atoms"
 import { degradeServerReachability, markServerReachable } from "@/lib/connection-state"
 import { manualOfflineModeAtom } from "@/lib/offline/manual-offline-mode"
 import { logger } from "@/lib/utils/logger"
@@ -10,6 +10,7 @@ import { atom } from "jotai"
 import { useAtomValue } from "jotai/react"
 import { useAtom } from "jotai/react"
 import React from "react"
+import { AppState } from "react-native"
 
 const CLIENT_IDENTITY_EVENT = "client-identity"
 
@@ -26,7 +27,7 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
     const [isConnected, setIsConnected] = useAtom(websocketConnectedAtom)
     const [, setConnectionState] = useAtom(websocketConnectionStateAtom)
 
-    useWebsocketEventRouter(socket)
+    useWebsocketEventRouter()
 
     const retryCount = React.useRef(0)
     const retryTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -88,6 +89,8 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
                 retryTimeout.current = setTimeout(connectWebSocket, delay)
             })
 
+            // Parse each frame ONCE and fan out to the hub (router, player session,
+            // watch rooms subscribe there instead of re-parsing per listener).
             s.addEventListener("message", event => {
                 if (typeof event.data !== "string") {
                     return
@@ -95,9 +98,11 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
 
                 try {
                     const message = JSON.parse(event.data) as { type?: string; payload?: unknown }
+                    if (typeof message?.type !== "string") return
                     if (message.type === CLIENT_IDENTITY_EVENT) {
                         saveClientIdentityFromEvent(message.payload)
                     }
+                    dispatchWsMessage({ type: message.type, payload: message.payload })
                 }
                 catch {
                 }
@@ -111,8 +116,23 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
             connectWebSocket()
         }
 
+        // iOS kills the socket while backgrounded; on foreground, don't make the user
+        // wait out the exponential backoff — reset it and reconnect immediately.
+        const appStateSub = AppState.addEventListener("change", state => {
+            if (state !== "active" || cancelled) return
+            const active = currentSocket ?? socket
+            if (active && (active.readyState === WebSocket.OPEN || active.readyState === WebSocket.CONNECTING)) return
+            if (retryTimeout.current) {
+                clearTimeout(retryTimeout.current)
+                retryTimeout.current = null
+            }
+            retryCount.current = 0
+            connectWebSocket()
+        })
+
         return () => {
             cancelled = true
+            appStateSub.remove()
             if (retryTimeout.current) {
                 clearTimeout(retryTimeout.current)
             }
