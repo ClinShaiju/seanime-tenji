@@ -775,7 +775,7 @@ export function useStartOnlineStreamPlayback() {
  * Called from the player route when it unmounts.
  */
 export function useCleanupPlaybackSession() {
-    const [source, setSource] = useAtom(currentPlaybackSourceAtom)
+    const [, setSource] = useAtom(currentPlaybackSourceAtom)
     const [, setPlayerOpen] = useAtom(playerOpenAtom)
     const [, setLoadingMessage] = useAtom(playerLoadingMessageAtom)
     const [, setError] = useAtom(playerErrorAtom)
@@ -789,12 +789,19 @@ export function useCleanupPlaybackSession() {
     const [, setDebridStreamState] = useAtom(debridStreamStateAtom)
 
     return React.useCallback(() => {
-            setSource(null)
+            // Read the source at call time via the functional update — subscribing to the atom
+            // here would freeze this memoized callback's closure at the first render, comparing
+            // pendingInfo against episode 1 of a multi-episode session instead of the one playing.
+            let lastSource: MobilePlaybackSource | null = null
+            setSource(current => {
+                lastSource = current
+                return null
+            })
             setPlayerOpen(false)
             setLoadingMessage(null)
             setError(null)
             setPendingInfo(current => {
-                if (current && source && (current.mediaId !== source.mediaId || current.episodeNumber !== source.episodeNumber)) {
+                if (current && lastSource && (current.mediaId !== lastSource.mediaId || current.episodeNumber !== lastSource.episodeNumber)) {
                     return current
                 }
                 return null

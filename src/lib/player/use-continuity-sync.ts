@@ -62,16 +62,24 @@ export function useContinuitySync(
         updateContinuity(payload)
     }, [getPayload, isConnected, playerState.duration, updateContinuity])
 
+    // flushContinuity's identity changes on every progress tick (it closes over currentTime),
+    // so long-lived effects (interval, AppState, unmount) must call it through a ref — putting
+    // it in their dep arrays tears the interval down every ~1s and it never fires.
+    const flushContinuityRef = React.useRef(flushContinuity)
+    flushContinuityRef.current = flushContinuity
+
+    const hasDuration = playerState.duration > 0
+
     // Periodic continuity updates while playing
     React.useEffect(() => {
-        if (!source || playerState.paused || playerState.duration <= 0) return
+        if (!source || playerState.paused || !hasDuration) return
 
         const interval = setInterval(() => {
-            flushContinuity()
+            flushContinuityRef.current()
         }, CONTINUITY_UPDATE_INTERVAL_MS)
 
         return () => clearInterval(interval)
-    }, [source, playerState.paused, playerState.duration, flushContinuity])
+    }, [source, playerState.paused, hasDuration])
 
     // Flush on pause
     React.useEffect(() => {
@@ -84,18 +92,19 @@ export function useContinuitySync(
     React.useEffect(() => {
         const handleAppState = (nextState: AppStateStatus) => {
             if (nextState === "background" || nextState === "inactive") {
-                flushContinuity()
+                flushContinuityRef.current()
             }
         }
 
         const sub = AppState.addEventListener("change", handleAppState)
         return () => sub.remove()
-    }, [flushContinuity])
+    }, [])
 
-    // Flush on unmount
+    // Flush on unmount (via the ref — a [] effect would freeze the first-render closure,
+    // which always sees duration 0 and silently no-ops)
     React.useEffect(() => {
         return () => {
-            flushContinuity()
+            flushContinuityRef.current()
         }
     }, [])
 
