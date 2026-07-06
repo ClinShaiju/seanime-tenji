@@ -15,9 +15,9 @@ import type {
     Anime_PlaylistEpisode,
     ChapterDownloader_DownloadID,
     Continuity_UpdateWatchHistoryItemOptions,
-    Debrid_TorrentItem,
     DebridClient_CancelStreamOptions,
     DebridClient_StreamPlaybackType,
+    Debrid_TorrentItem,
     HibikeTorrent_AnimeTorrent,
     HibikeTorrent_BatchEpisodeFiles,
     LibraryExplorer_SuperUpdateFileOptions,
@@ -122,6 +122,7 @@ export type AnilistListAnime_Variables = {
     sort?: Array<AL_MediaSort>
     status?: Array<AL_MediaStatus>
     genres?: Array<string>
+    tags?: Array<string>
     averageScore_greater?: number
     season?: AL_MediaSeason
     seasonYear?: number
@@ -296,6 +297,35 @@ export type UpdateAnimeEntryRepeat_Variables = {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// anime_franchise
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * - Filepath: internal/handlers/anime_franchise.go
+ * - Filename: anime_franchise.go
+ * - Endpoint: /api/v1/library/anime-entry/{id}/franchise
+ * @description
+ * Route returns the franchise (seasons + extras + watch order) for an AniList anime media id.
+ */
+export type GetAnimeFranchise_Variables = {
+    /**
+     *  AniList anime media ID
+     */
+    id: number
+}
+
+/**
+ * - Filepath: internal/handlers/anime_franchise.go
+ * - Filename: anime_franchise.go
+ * - Endpoint: /api/v1/library/franchise-refs
+ * @description
+ * Route resolves franchise grouping refs (TMDB id + season number) for many AniList ids.
+ */
+export type GetFranchiseRefs_Variables = {
+    mediaIds: Array<number>
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // auth
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -308,45 +338,6 @@ export type UpdateAnimeEntryRepeat_Variables = {
  */
 export type Login_Variables = {
     token: string
-}
-
-// Multi-user profiles (hand-added; mirrors internal/handlers/user_auth.go).
-export type UserAccount = {
-    id: number
-    username: string
-    role: string
-    anilistAccountId?: number | null
-}
-
-export type UserLogin_Variables = {
-    username: string
-    password: string
-}
-
-export type UserLoginResponse = {
-    token: string
-    user: UserAccount
-}
-
-export type UserRegister_Variables = {
-    username: string
-    password: string
-    role?: string
-}
-
-export type UserChangePassword_Variables = {
-    oldPassword: string
-    newPassword: string
-}
-
-// ⚠️ Go decodes missing bools as false — always send every field (useServerAutoSelect
-// in particular, or a partial PATCH silently resets it).
-export type UserSaveDebrid_Variables = {
-    useServerDebrid: boolean
-    provider: string
-    /** Blank = keep the existing key. */
-    apiKey: string
-    useServerAutoSelect: boolean
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -631,8 +622,30 @@ export type DebridStartStream_Variables = {
     fileIndex?: number
     playbackType: DebridClient_StreamPlaybackType
     clientId: string
+    /**
+     *  DirectCdnCapable is sent by clients that can play a raw debrid CDN URL themselves
+     *  (Denshi/Electron — injects CORS headers). Web tabs send false → proxy.
+     *
+     *  DirectCdnCapable is sent by clients that can play a raw debrid CDN URL themselves
+     *  (Denshi/Electron — injects CORS headers). Web tabs send false → proxy.
+     */
+    directCdnCapable?: boolean
     batchEpisodeFiles?: HibikeTorrent_BatchEpisodeFiles
+    /**
+     *  Preload is true if the stream should only be resolved and cached, not played.
+     *
+     *  Preload is true if the stream should only be resolved and cached, not played.
+     */
     preload?: boolean
+    /**
+     *  PrewarmMetadata, when set on a preload, also warms the MKV metadata/CDN (font
+     *  attachments, HEAD) so the first frame is instant. Only the @3s next-episode trigger
+     *  sets this — it's the highest-certainty target. CDN load is bounded by cdnWarmLimiter.
+     *
+     *  PrewarmMetadata, when set on a preload, also warms the MKV metadata/CDN (font
+     *  attachments, HEAD) so the first frame is instant. Only the @3s next-episode trigger
+     *  sets this — it's the highest-certainty target. CDN load is bounded by cdnWarmLimiter.
+     */
     prewarmMetadata?: boolean
 }
 
@@ -893,6 +906,18 @@ export type ReloadExternalExtension_Variables = {
 /**
  * - Filepath: internal/handlers/extensions.go
  * - Filename: extensions.go
+ * - Endpoint: /api/v1/extensions/external/disabled
+ * @description
+ * Route enables or disables an external extension.
+ */
+export type SetExternalExtensionDisabled_Variables = {
+    id: string
+    disabled: boolean
+}
+
+/**
+ * - Filepath: internal/handlers/extensions.go
+ * - Filename: extensions.go
  * - Endpoint: /api/v1/extensions/all
  * @description
  * Route returns all loaded and invalid extensions.
@@ -962,6 +987,10 @@ export type SaveExtensionUserConfig_Variables = {
 export type RemoveFileCacheBucket_Variables = {
     bucket: string
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// identity
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // library_explorer
@@ -1044,6 +1073,10 @@ export type LocalGetIsMediaTracked_Variables = {
 export type LocalSetHasLocalChanges_Variables = {
     updated: boolean
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// local_security
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // localfiles
@@ -1269,6 +1302,7 @@ export type AnilistListManga_Variables = {
     sort?: Array<AL_MediaSort>
     status?: Array<AL_MediaStatus>
     genres?: Array<string>
+    tags?: Array<string>
     averageScore_greater?: number
     year?: number
     countryOfOrigin?: string
@@ -1495,6 +1529,24 @@ export type DeleteMediaMetadataParent_Variables = {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// mpvcore
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * - Filepath: internal/handlers/mpvcore.go
+ * - Filename: mpvcore.go
+ * - Endpoint: /api/v1/mpvcore/insight/character/{malId}
+ * @description
+ * Route returns the character details for MpvCore InSight.
+ */
+export type MpvCoreInSightGetCharacterDetails_Variables = {
+    /**
+     *  The MAL character ID
+     */
+    malId: number
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // nakama
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1573,39 +1625,104 @@ export type NakamaSendChatMessage_Variables = {
     message: string
 }
 
-// Same-instance watch rooms (pool + multi-room model).
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// nakama_rooms
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * - Filepath: internal/handlers/nakama_rooms.go
+ * - Filename: nakama_rooms.go
+ * - Endpoint: /api/v1/nakama/watch-room/create
+ * @description
+ * Route creates a same-instance watch room and joins it as host.
+ */
 export type NakamaWatchRoomCreate_Variables = {
     name: string
     password: string
     clientId: string
 }
+
+/**
+ * - Filepath: internal/handlers/nakama_rooms.go
+ * - Filename: nakama_rooms.go
+ * - Endpoint: /api/v1/nakama/watch-room/join
+ * @description
+ * Route joins a same-instance watch room.
+ */
 export type NakamaWatchRoomJoin_Variables = {
     roomId: string
     password: string
     clientId: string
 }
+
+/**
+ * - Filepath: internal/handlers/nakama_rooms.go
+ * - Filename: nakama_rooms.go
+ * - Endpoint: /api/v1/nakama/watch-room/leave
+ * @description
+ * Route leaves the current same-instance watch room.
+ */
 export type NakamaWatchRoomLeave_Variables = {
     roomId: string
 }
+
+/**
+ * - Filepath: internal/handlers/nakama_rooms.go
+ * - Filename: nakama_rooms.go
+ * - Endpoint: /api/v1/nakama/watch-room/control
+ * @description
+ * Route (host only) grants or revokes playback control for a room member.
+ */
 export type NakamaWatchRoomSetControl_Variables = {
     roomId: string
     targetKey: string
     canControl: boolean
     all: boolean
 }
+
+/**
+ * - Filepath: internal/handlers/nakama_rooms.go
+ * - Filename: nakama_rooms.go
+ * - Endpoint: /api/v1/nakama/watch-room/force-tracks
+ * @description
+ * Route (host only) toggles forcing the host's audio/subtitle tracks on all members.
+ */
 export type NakamaWatchRoomForceTracks_Variables = {
     roomId: string
     forceHostTracks: boolean
 }
+
+/**
+ * - Filepath: internal/handlers/nakama_rooms.go
+ * - Filename: nakama_rooms.go
+ * - Endpoint: /api/v1/nakama/watch-room/autoskip
+ * @description
+ * Route sets the caller's OP/ED auto-skip vote ("on" | "off" | "auto") for a room.
+ */
 export type NakamaWatchRoomAutoSkip_Variables = {
     roomId: string
     pref: string
 }
 
+/**
+ * - Filepath: internal/handlers/nakama_rooms.go
+ * - Filename: nakama_rooms.go
+ * - Endpoint: /api/v1/nakama/watch-room/join-stream
+ * @description
+ * Route starts (or rejoins) the room's active debrid stream for the caller.
+ */
 export type NakamaWatchRoomJoinStream_Variables = {
     roomId: string
     clientId: string
-    playbackType: string
+    playbackType: DebridClient_StreamPlaybackType
+    /**
+     *  DirectCdnCapable: this participant can play a raw CDN link (Denshi). Each capable
+     *  room member gets its own direct CDN link via the shared-selection dual-link resolve.
+     *
+     *  DirectCdnCapable: this participant can play a raw CDN link (Denshi). Each capable
+     *  room member gets its own direct CDN link via the shared-selection dual-link resolve.
+     */
+    directCdnCapable?: boolean
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1787,10 +1904,6 @@ export type GetPlaylistEpisodes_Variables = {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// proxy
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // releases
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1831,6 +1944,10 @@ export type SaveIssueReport_Variables = {
     viewportHeight: number
     recordingDurationMs: number
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// request_boundary
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // scan
@@ -1901,6 +2018,18 @@ export type SaveSettings_Variables = {
 /**
  * - Filepath: internal/handlers/settings.go
  * - Filename: settings.go
+ * - Endpoint: /api/v1/settings/path
+ * @description
+ * Route patches a specific app setting.
+ */
+export type PatchSetting_Variables = {
+    path: string
+    value: any
+}
+
+/**
+ * - Filepath: internal/handlers/settings.go
+ * - Filename: settings.go
  * - Endpoint: /api/v1/settings/auto-downloader
  * @description
  * Route updates the auto-downloader settings.
@@ -1964,6 +2093,10 @@ export type UpdateHomeItems_Variables = {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// strict_security
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // theme
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1990,9 +2123,17 @@ export type UpdateTheme_Variables = {
  * Route performs an action on a torrent.
  */
 export type TorrentClientAction_Variables = {
-    hash: string
+    hash?: string
     action: string
-    dir: string
+    dir?: string
+    tracker?: string
+    name?: string
+    value?: boolean
+    index?: number
+    priority?: number
+    downloadLimit?: number
+    uploadLimit?: number
+    magnet?: string
 }
 
 /**
@@ -2062,8 +2203,13 @@ export type SearchTorrent_Variables = {
     resolution?: string
     bestRelease?: boolean
     includeSpecialProviders?: boolean
-    // When true, the server orders results by the auto-select rules (episode → English dub →
-    // cache → format) instead of the raw provider order. Sent for debrid-stream selection.
+    /**
+     *  When true (debrid-stream selection), results are ordered by the auto-select rules
+     *  (profile scoring, season match) and cache prioritization, without dropping any.
+     *
+     *  When true (debrid-stream selection), results are ordered by the auto-select rules
+     *  (profile scoring, season match) and cache prioritization, without dropping any.
+     */
     sortByAutoSelect?: boolean
 }
 
@@ -2142,6 +2288,72 @@ export type GetTorrentstreamBatchHistory_Variables = {
     mediaId: number
 }
 
+/**
+ * - Filepath: internal/handlers/torrentstream.go
+ * - Filename: torrentstream.go
+ * - Endpoint: /api/v1/torrentstream/batch-history/delete
+ * @description
+ * Route deletes the saved batch selection.
+ */
+export type DeleteTorrentstreamBatchHistory_Variables = {
+    mediaId: number
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// user_auth
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * - Filepath: internal/handlers/user_auth.go
+ * - Filename: user_auth.go
+ * - Endpoint: /api/v1/user/login
+ * @description
+ * Route logs in a Seanime user with username + password and returns a session token.
+ */
+export type UserLogin_Variables = {
+    username: string
+    password: string
+}
+
+/**
+ * - Filepath: internal/handlers/user_auth.go
+ * - Filename: user_auth.go
+ * - Endpoint: /api/v1/user/register
+ * @description
+ * Route creates a new Seanime user (admin only).
+ */
+export type UserRegister_Variables = {
+    username: string
+    password: string
+    role: string
+}
+
+/**
+ * - Filepath: internal/handlers/user_auth.go
+ * - Filename: user_auth.go
+ * - Endpoint: /api/v1/user/change-password
+ * @description
+ * Route changes the current user's password.
+ */
+export type UserChangePassword_Variables = {
+    oldPassword: string
+    newPassword: string
+}
+
+/**
+ * - Filepath: internal/handlers/user_auth.go
+ * - Filename: user_auth.go
+ * - Endpoint: /api/v1/user/debrid
+ * @description
+ * Route saves the current user's debrid choice (use the server debrid, or their own).
+ */
+export type SaveUserDebrid_Variables = {
+    useServerDebrid: boolean
+    provider: string
+    apiKey: string
+    useServerAutoSelect: boolean
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // videocore
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2158,6 +2370,19 @@ export type VideoCoreInSightGetCharacterDetails_Variables = {
      *  The MAL character ID
      */
     malId: number
+}
+
+/**
+ * - Filepath: internal/handlers/videocore.go
+ * - Filename: videocore.go
+ * - Endpoint: /api/v1/videocore/screenshot
+ * @description
+ * Route saves a screenshot to a local directory.
+ */
+export type VideoCoreSaveScreenshot_Variables = {
+    dir: string
+    filename: string
+    base64Data: string
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 import { useServerMutation } from "@/api/client/requests"
-import { UserChangePassword_Variables, UserLogin_Variables, UserLoginResponse, UserSaveDebrid_Variables } from "@/api/generated/endpoint.types"
+import { SaveUserDebrid_Variables, UserChangePassword_Variables, UserLogin_Variables } from "@/api/generated/endpoint.types"
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
+import { UserLoginResponse } from "@/api/generated/types"
 import { useSetSessionToken } from "@/atoms/server.atoms"
 import { toast } from "@/lib/utils/toast"
 import { useQueryClient } from "@tanstack/react-query"
@@ -14,9 +15,9 @@ export function useUserLogin() {
     const setSessionToken = useSetSessionToken()
 
     return useServerMutation<UserLoginResponse, UserLogin_Variables>({
-        endpoint: API_ENDPOINTS.USER.Login.endpoint,
-        method: API_ENDPOINTS.USER.Login.methods[0],
-        mutationKey: [API_ENDPOINTS.USER.Login.key],
+        endpoint: API_ENDPOINTS.USER_AUTH.UserLogin.endpoint,
+        method: API_ENDPOINTS.USER_AUTH.UserLogin.methods[0],
+        mutationKey: [API_ENDPOINTS.USER_AUTH.UserLogin.key],
         onSuccess: async data => {
             if (data?.token) {
                 setSessionToken(data.token)
@@ -30,9 +31,9 @@ export function useUserLogin() {
 
 export function useUserChangePassword() {
     return useServerMutation<boolean, UserChangePassword_Variables>({
-        endpoint: API_ENDPOINTS.USER.ChangePassword.endpoint,
-        method: API_ENDPOINTS.USER.ChangePassword.methods[0],
-        mutationKey: [API_ENDPOINTS.USER.ChangePassword.key],
+        endpoint: API_ENDPOINTS.USER_AUTH.UserChangePassword.endpoint,
+        method: API_ENDPOINTS.USER_AUTH.UserChangePassword.methods[0],
+        mutationKey: [API_ENDPOINTS.USER_AUTH.UserChangePassword.key],
         onSuccess: () => {
             toast.success("Password changed")
         },
@@ -41,14 +42,14 @@ export function useUserChangePassword() {
 
 // Saves the user's debrid override (shared server debrid vs their own provider/key).
 // The server writes every field unconditionally, so the form must always submit the
-// full shape (see UserSaveDebrid_Variables).
+// full shape (see SaveUserDebrid_Variables).
 export function useUserSaveDebrid() {
     const queryClient = useQueryClient()
 
-    return useServerMutation<boolean, UserSaveDebrid_Variables>({
-        endpoint: API_ENDPOINTS.USER.SaveDebrid.endpoint,
-        method: API_ENDPOINTS.USER.SaveDebrid.methods[0],
-        mutationKey: [API_ENDPOINTS.USER.SaveDebrid.key],
+    return useServerMutation<boolean, SaveUserDebrid_Variables>({
+        endpoint: API_ENDPOINTS.USER_AUTH.SaveUserDebrid.endpoint,
+        method: API_ENDPOINTS.USER_AUTH.SaveUserDebrid.methods[0],
+        mutationKey: [API_ENDPOINTS.USER_AUTH.SaveUserDebrid.key],
         onSuccess: async () => {
             toast.success("Debrid settings saved")
             await queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.STATUS.GetStatus.key] })
@@ -61,9 +62,9 @@ export function useUserLogout() {
     const setSessionToken = useSetSessionToken()
 
     return useServerMutation({
-        endpoint: API_ENDPOINTS.USER.Logout.endpoint,
-        method: API_ENDPOINTS.USER.Logout.methods[0],
-        mutationKey: [API_ENDPOINTS.USER.Logout.key],
+        endpoint: API_ENDPOINTS.USER_AUTH.UserLogout.endpoint,
+        method: API_ENDPOINTS.USER_AUTH.UserLogout.methods[0],
+        mutationKey: [API_ENDPOINTS.USER_AUTH.UserLogout.key],
         onSuccess: async () => {
             setSessionToken(null)
             toast.success("Logged out of profile")

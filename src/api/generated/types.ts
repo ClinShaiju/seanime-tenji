@@ -1159,7 +1159,7 @@ export type AL_MediaSort = "ID" |
 export type AL_MediaStatus = "FINISHED" | "RELEASING" | "NOT_YET_RELEASED" | "CANCELLED" | "HIATUS"
 
 /**
- * - Filepath: internal/api/anilist/tags.go
+ * - Filepath: ..\internal\api\anilist\tags.go
  * - Filename: tags.go
  * - Package: anilist
  */
@@ -1993,6 +1993,49 @@ export type AutoDownloader_SimulationResult = {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Autoselect
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * - Filepath: internal/torrents/autoselect/autoselect.go
+ * - Filename: autoselect.go
+ * - Package: autoselect
+ */
+export type AutoSelectCandidate = {
+    name: string
+    provider: string
+    seeders: number
+    score: number
+    /**
+     * "waiting", "analyzing", "skipped", "selected"
+     */
+    status: string
+}
+
+/**
+ * - Filepath: internal/torrents/autoselect/autoselect.go
+ * - Filename: autoselect.go
+ * - Package: autoselect
+ */
+export type StreamAutoSelectStatusPayload = {
+    active: boolean
+    mediaTitle: string
+    episode: number
+    resolutions?: Array<string>
+    minSeeders: number
+    /**
+     * "searching", "ranking", "analyzing", "completed"
+     */
+    step: string
+    /**
+     * Description of the current action
+     */
+    stepDetail: string
+    candidates?: Array<AutoSelectCandidate>
+    selectedFile: string
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ChapterDownloader
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2034,7 +2077,7 @@ export type Continuity_UpdateWatchHistoryItemOptions = {
 }
 
 /**
- * - Filepath: internal/continuity/history.go
+ * - Filepath: ..\internal\continuity\history.go
  * - Filename: history.go
  * - Package: continuity
  */
@@ -2284,6 +2327,10 @@ export type DebridClient_FilePreview = {
  * - Filepath: internal/debrid/client/prewarm_db.go
  * - Filename: prewarm_db.go
  * - Package: debrid_client
+ * @description
+ *  PrewarmStatusItem reports that a given episode is prewarmed (will play instantly). Metadata=true
+ *  means it's also metadata/CDN-warmed (the tier-1 target — instant first frame too). Consumed by the
+ *  UI to badge episodes; read-only, never triggers a resolve.
  */
 export type DebridClient_PrewarmStatusItem = {
     mediaId: number
@@ -2471,7 +2518,7 @@ export type Extension_Language = "javascript" | "typescript" | "go"
  * - Package: extension
  * @description
  *  PluginAllowlist is a list of system permissions that the plugin is asking for.
- *
+ *  
  *  The user must acknowledge these permissions before the plugin can be loaded.
  */
 export type Extension_PluginAllowlist = {
@@ -3022,33 +3069,37 @@ export type Status = {
     serverReady: boolean
     serverHasPassword: boolean
     showChangelogTour: string
-    /**
-     * Multi-user profiles. Role of the acting user ("admin" | "user" | "").
-     */
-    userRole?: string
-    /**
-     * Whether any regular (non-admin) user exists on the server.
-     */
-    serverHasUsers?: boolean
-    /**
-     * True once the request has passed the server-password gate.
-     */
-    serverAuthenticated?: boolean
-    /**
-     * The acting (non-admin) user's debrid override state.
-     */
-    userDebrid?: Status_UserDebrid
+    userRole: string
+    serverHasUsers: boolean
+    serverAuthenticated: boolean
+    userDebrid?: UserDebridStatus
 }
 
-export type Status_UserDebrid = {
+/**
+ * - Filepath: internal/handlers/status.go
+ * - Filename: status.go
+ * - Package: handlers
+ * @description
+ *  UserDebridStatus is a non-admin user's debrid choice. When UseServerDebrid is true
+ *  (default) they stream via the shared server debrid; otherwise their own provider/key.
+ */
+export type UserDebridStatus = {
     useServerDebrid: boolean
     provider: string
     hasApiKey: boolean
-    /**
-     * When false, the user's own auto-select profile drives the debrid auto-pick
-     * instead of the server's. ⚠️ Go decodes a missing bool as false — always send it.
-     */
     useServerAutoSelect: boolean
+}
+
+/**
+ * - Filepath: internal/handlers/user_auth.go
+ * - Filename: user_auth.go
+ * - Package: handlers
+ * @description
+ *  UserLoginResponse is returned on a successful user login.
+ */
+export type UserLoginResponse = {
+    token: string
+    user?: Models_User
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3136,6 +3187,7 @@ export type HibikeManga_SearchResult = {
     synonyms?: Array<string>
     year?: number
     image?: string
+    imageHeaders?: Record<string, string>
     searchRating?: number
 }
 
@@ -3227,6 +3279,7 @@ export type HibikeTorrent_AnimeTorrent = {
     downloadUrl: string
     magnetLink?: string
     infoHash?: string
+    streamUrl?: string
     resolution?: string
     isBatch?: boolean
     episodeNumber?: number
@@ -3244,6 +3297,7 @@ export type HibikeTorrent_AnimeTorrentFile = {
     index: number
     path: string
     name: string
+    episodeNumber?: number
 }
 
 /**
@@ -3493,7 +3547,7 @@ export type Manga_PageDimension = {
 }
 
 /**
- * - Filepath: internal/manga/download.go
+ * - Filepath: ..\internal\manga\download.go
  * - Filename: download.go
  * - Package: manga
  */
@@ -3913,6 +3967,7 @@ export type Models_DebridSettings = {
     streamAutoSelect: boolean
     streamPreferredResolution: string
     preloadNextStream: boolean
+    directCdnPlayback: boolean
     id: number
     createdAt?: string
     updatedAt?: string
@@ -3952,14 +4007,14 @@ export type Models_HomeItem = {
 }
 
 /**
- * - Filepath: internal/database/models/models.go
+ * - Filepath: ..\internal\database\models\models.go
  * - Filename: models.go
  * - Package: models
  */
 export type Models_IntSlice = Array<number>
 
 /**
- * - Filepath: internal/database/models/models.go
+ * - Filepath: ..\internal\database\models\models.go
  * - Filename: models.go
  * - Package: models
  */
@@ -4006,8 +4061,8 @@ export type Models_LibrarySettings = {
      */
     defaultPlaybackSource: string
     groupSeasons: boolean
-    hideFranchiseSpinoffs?: boolean
-    hideFranchiseRecaps?: boolean
+    hideFranchiseSpinoffs: boolean
+    hideFranchiseRecaps: boolean
 }
 
 /**
@@ -4074,6 +4129,9 @@ export type Models_MediaPlayerSettings = {
     vcTranslateApiKey: string
     vcTranslateBaseUrl: string
     vcTranslateModel: string
+    mpvPrismLogging: boolean
+    mpvPrismEnabled: boolean
+    screenshotDir: string
 }
 
 /**
@@ -4160,7 +4218,7 @@ export type Models_SilencedMediaEntry = {
 }
 
 /**
- * - Filepath: internal/database/models/models.go
+ * - Filepath: ..\internal\database\models\models.go
  * - Filename: models.go
  * - Package: models
  */
@@ -4172,6 +4230,7 @@ export type Models_StringSlice = Array<string>
  * - Package: models
  */
 export type Models_Theme = {
+    userId: number
     enableColorSettings: boolean
     backgroundColor: string
     accentColor: string
@@ -4226,6 +4285,7 @@ export type Models_Theme = {
     groupSeasons: boolean
     hideFranchiseSpinoffs: boolean
     hideFranchiseRecaps: boolean
+    enableMediaPageBannerTrailer: boolean
     id: number
     createdAt?: string
     updatedAt?: string
@@ -4250,6 +4310,11 @@ export type Models_TorrentSettings = {
     transmissionPort: number
     transmissionUsername: string
     transmissionPassword: string
+    seanimePort: number
+    seanimeMaxConnections: number
+    seanimeDownloadLimit: number
+    seanimeUploadLimit: number
+    seanimeMaxActiveDownloads: number
     showActiveTorrentCount: boolean
     hideTorrentList: boolean
 }
@@ -4274,10 +4339,162 @@ export type Models_TorrentstreamSettings = {
     streamUrlAddress: string
     slowSeeding: boolean
     preloadNextStream: boolean
+    disableAcceleratedStartup: boolean
     id: number
     createdAt?: string
     updatedAt?: string
 }
+
+/**
+ * - Filepath: internal/database/models/models.go
+ * - Filename: models.go
+ * - Package: models
+ * @description
+ *  User is a Seanime-local account: a credential (username + bcrypt password) and a
+ *  role. It is distinct from the AniList Account, which is linked separately via
+ *  AnilistAccountID. The first user created is the admin (server owner) who controls
+ *  the shared content/infrastructure plane.
+ *  
+ *  ponytail: admin identity is also satisfied by the server-password holder, so a
+ *  single-user install needs no User rows to behave as today; the admin row is a
+ *  bootstrap convenience and the anchor for per-user data.
+ */
+export type Models_User = {
+    username: string
+    /**
+     * UserRoleAdmin | UserRoleUser
+     */
+    role: string
+    anilistAccountId?: number
+    id: number
+    createdAt?: string
+    updatedAt?: string
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Mpvcore
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * - Filepath: internal/mpvcore/types.go
+ * - Filename: types.go
+ * - Package: mpvcore
+ */
+export type MpvCore_ClientEventType = "playback-loaded" |
+    "loaded-metadata" |
+    "can-play" |
+    "paused" |
+    "resumed" |
+    "status" |
+    "seeked" |
+    "completed" |
+    "ended" |
+    "player-error" |
+    "terminated" |
+    "fullscreen-changed" |
+    "pip-changed" |
+    "audio-track-changed" |
+    "subtitle-track-changed" |
+    "playlist-state" |
+    "skip-data"
+
+/**
+ * - Filepath: internal/mpvcore/insight.go
+ * - Filename: insight.go
+ * - Package: mpvcore
+ */
+export type MpvCore_InSightCharacter = {
+    mal_id: number
+    url: string
+    images: MpvCore_InSightCharacter_Images
+    name: string
+    role: string
+    favorites: number
+}
+
+/**
+ * - Filepath: internal/mpvcore/insight.go
+ * - Filename: insight.go
+ * - Package: mpvcore
+ */
+export type MpvCore_InSightCharacterDetails = {
+    mal_id: number
+    url: string
+    images: MpvCore_InSightCharacterDetails_Images
+    name: string
+    name_kanji: string
+    nicknames?: Array<string>
+    favorites: number
+    about: string
+}
+
+/**
+ * - Filepath: internal/mpvcore/insight.go
+ * - Filename: insight.go
+ * - Package: mpvcore
+ */
+export type MpvCore_InSightCharacterDetails_Images = {
+    jpg: { image_url: string; }
+    webp: { image_url: string; small_image_url: string; }
+}
+
+/**
+ * - Filepath: internal/mpvcore/insight.go
+ * - Filename: insight.go
+ * - Package: mpvcore
+ */
+export type MpvCore_InSightCharacter_Images = {
+    jpg: { image_url: string; }
+    webp: { image_url: string; small_image_url: string; }
+}
+
+/**
+ * - Filepath: internal/mpvcore/insight.go
+ * - Filename: insight.go
+ * - Package: mpvcore
+ */
+export type MpvCore_InSightData = {
+    characters?: Array<MpvCore_InSightCharacter>
+    suggestions?: Array<MpvCore_InSightSegment>
+}
+
+/**
+ * - Filepath: internal/mpvcore/insight.go
+ * - Filename: insight.go
+ * - Package: mpvcore
+ */
+export type MpvCore_InSightSegment = {
+    characterId: number
+    startTime: number
+    endTime: number
+}
+
+/**
+ * - Filepath: internal/mpvcore/types.go
+ * - Filename: types.go
+ * - Package: mpvcore
+ */
+export type MpvCore_ServerEvent = "open-and-await" |
+    "abort-open" |
+    "watch" |
+    "stream-error" |
+    "pause" |
+    "resume" |
+    "seek" |
+    "seek-to" |
+    "terminate" |
+    "set-fullscreen" |
+    "set-pip" |
+    "set-audio-track" |
+    "set-subtitle-track" |
+    "add-subtitle-track" |
+    "show-message" |
+    "get-status" |
+    "get-playlist" |
+    "get-skip-data" |
+    "set-skip-data" |
+    "play-playlist-episode" |
+    "in-sight-data"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Nakama
@@ -4330,7 +4547,7 @@ export type Nakama_NakamaAnimeLibrary = {
 }
 
 /**
- * - Filepath: internal/nakama/share.go
+ * - Filepath: ..\internal\nakama\share.go
  * - Filename: share.go
  * - Package: nakama
  */
@@ -4367,6 +4584,38 @@ export type Nakama_NakamaStatus = {
 }
 
 /**
+ * - Filepath: internal/nakama/watch_room.go
+ * - Filename: watch_room.go
+ * - Package: nakama
+ * @description
+ *  PoolUser identifies a user in the hub's pool. The Key is the stable, collision-safe
+ *  identifier: local users key on their username; external users are namespaced by their
+ *  origin server tag so an external "alice" never collides with a local "alice".
+ */
+export type Nakama_PoolUser = {
+    /**
+     * Seanime user id (0 = local single-user/admin install)
+     */
+    userId: number
+    /**
+     * display name (bare, un-namespaced)
+     */
+    username: string
+    source: Nakama_PoolUserSource
+    /**
+     * external origin; "" for local
+     */
+    serverTag?: string
+}
+
+/**
+ * - Filepath: internal/nakama/watch_room.go
+ * - Filename: watch_room.go
+ * - Package: nakama
+ */
+export type Nakama_PoolUserSource = "local" | "external"
+
+/**
  * - Filepath: internal/nakama/room.go
  * - Filename: room.go
  * - Package: nakama
@@ -4379,6 +4628,81 @@ export type Nakama_Room = {
     peerJoinUrl: string
     createdAt?: string
     expiresAt?: string
+}
+
+/**
+ * - Filepath: internal/nakama/watch_room.go
+ * - Filename: watch_room.go
+ * - Package: nakama
+ * @description
+ *  RoomCard is the public, listing-safe view of a room shown on the discovery cards.
+ *  It deliberately omits the participant list (no global userlist; members are only
+ *  visible inside a room) and the password hash. mediaId/episode let the frontend render
+ *  the cover from its own metadata — the hub does no metadata lookups.
+ */
+export type Nakama_RoomCard = {
+    id: string
+    name: string
+    hostUsername: string
+    memberCount: number
+    hasPassword: boolean
+    mediaId?: number
+    episodeNumber?: number
+    title?: string
+    coverImage?: string
+}
+
+/**
+ * - Filepath: internal/nakama/watch_room.go
+ * - Filename: watch_room.go
+ * - Package: nakama
+ * @description
+ *  RoomParticipant is a PoolUser inside a specific room.
+ */
+export type Nakama_RoomParticipant = {
+    user: Nakama_PoolUser
+    /**
+     * the UI ws client id this participant drives from
+     */
+    clientId: string
+    /**
+     * the ORIGINAL host (room creator)
+     */
+    isHost: boolean
+    /**
+     * may drive play/pause/seek/episode
+     */
+    canControl: boolean
+    /**
+     * for promotion ordering
+     */
+    joinedAt?: string
+    autoSkipPref: string
+}
+
+/**
+ * - Filepath: internal/nakama/watch_room.go
+ * - Filename: watch_room.go
+ * - Package: nakama
+ * @description
+ *  RoomPlaybackStatusPayload is a control action relayed between members. It carries
+ *  ONLY position + media identity — deliberately NO audio/subtitle track fields, so each
+ *  member keeps their own track selection (per-user tracks). client->server on a control
+ *  action (play/pause/seek/episode change), server->followers to apply.
+ */
+export type Nakama_RoomPlaybackStatusPayload = {
+    roomId: string
+    paused: boolean
+    currentTime: number
+    duration: number
+    mediaId: number
+    episodeNumber: number
+    aniDbEpisode: string
+    streamType: Nakama_WatchPartyStreamType
+    stopped?: boolean
+    heartbeat?: boolean
+    audioTrack?: number
+    subtitleTrack?: number
 }
 
 /**
@@ -4432,7 +4756,7 @@ export type Nakama_WatchPartySessionMediaInfo = {
      * Path to local file if StreamType is file
      */
     localFilePath: string
-    onlinestreamParams?: VideoCore_OnlinestreamParams
+    onlinestreamParams?: Player_OnlinestreamParams
     torrentStreamParams?: Torrentstream_StartStreamOptions
 }
 
@@ -4500,68 +4824,14 @@ export type Nakama_WatchPartySessionSettings = {
  */
 export type Nakama_WatchPartyStreamType = "file" | "torrent" | "debrid" | "onlinestream"
 
-// Same-instance watch rooms (pool + multi-room model). See seanime internal/nakama/watch_room.go.
-export type Nakama_PoolUserSource = "local" | "external"
-export type Nakama_PoolUser = {
-    /**
-     * Seanime user id (0 = local single-user/admin install)
-     */
-    userId: number
-    /**
-     * display name (bare, un-namespaced)
-     */
-    username: string
-    source: Nakama_PoolUserSource
-    /**
-     * external origin; "" for local
-     */
-    serverTag?: string
-}
-export type Nakama_RoomCard = {
-    id: string
-    name: string
-    hostUsername: string
-    memberCount: number
-    hasPassword: boolean
-    mediaId?: number
-    episodeNumber?: number
-    title?: string
-    coverImage?: string
-}
-export type Nakama_RoomParticipant = {
-    user: Nakama_PoolUser
-    /**
-     * the UI ws client id this participant drives from
-     */
-    clientId: string
-    /**
-     * the ORIGINAL host (room creator)
-     */
-    isHost: boolean
-    /**
-     * may drive play/pause/seek/episode
-     */
-    canControl: boolean
-    /**
-     * for promotion ordering
-     */
-    joinedAt?: string
-    autoSkipPref: string
-}
-export type Nakama_RoomPlaybackStatusPayload = {
-    roomId: string
-    paused: boolean
-    currentTime: number
-    duration: number
-    mediaId: number
-    episodeNumber: number
-    aniDbEpisode: string
-    streamType: Nakama_WatchPartyStreamType
-    stopped?: boolean
-    heartbeat?: boolean
-    audioTrack?: number
-    subtitleTrack?: number
-}
+/**
+ * - Filepath: internal/nakama/watch_room.go
+ * - Filename: watch_room.go
+ * - Package: nakama
+ * @description
+ *  WatchRoom is one same-instance room. Playback sync state is layered on later
+ *  (task: per-room sync); this type is the membership + control spine.
+ */
 export type Nakama_WatchRoom = {
     id: string
     name: string
@@ -4585,10 +4855,18 @@ export type Nakama_WatchRoom = {
     autoSkipVotesOn: number
     autoSkipVotesOff: number
     createdAt?: string
-    /**
-     * is a stream currently running in the room (drives the "join stream" UI)
-     */
     playbackActive: boolean
+    paused: boolean
+    /**
+     * seconds, as of positionAt
+     */
+    position: number
+    positionAt?: string
+    lastControllerClientID: string
+    lastDiscreteAt?: string
+    lastDiscreteBy: string
+    lastPauseFlipAt?: string
+    lastLiveAt?: string
     /**
      * sha256 hex of the password; empty = open room
      */
@@ -4624,7 +4902,7 @@ export type NativePlayer_PlaybackInfo = {
      * nil if not ebml
      */
     mkvMetadata?: MKVParser_Metadata
-    subtitleTracks?: Array<VideoCore_VideoSubtitleTrack>
+    subtitleTracks?: Array<NativePlayer_VideoSubtitleTrack>
     /**
      * nil if not in list
      */
@@ -4656,6 +4934,25 @@ export type NativePlayer_ServerEvent = "open-and-await" |
  * - Package: nativeplayer
  */
 export type NativePlayer_StreamType = "torrent" | "localfile" | "debrid" | "url" | "nakama"
+
+/**
+ * - Filepath: internal/nativeplayer/nativeplayer.go
+ * - Filename: nativeplayer.go
+ * - Package: nativeplayer
+ */
+export type NativePlayer_VideoSubtitleTrack = {
+    index: number
+    src?: string
+    content?: string
+    label: string
+    language: string
+    /**
+     * "srt" | "vtt" | "ass" | "ssa"
+     */
+    type?: string
+    default?: boolean
+    useLibassRenderer?: boolean
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Onlinestream
@@ -4727,6 +5024,202 @@ export type Onlinestream_VideoSource = {
     quality: string
     type?: HibikeOnlinestream_VideoSourceType
     subtitles?: Array<Onlinestream_Subtitle>
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Player
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_InitialState = {
+    currentTime?: number
+    paused?: boolean
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_LibassFont = {
+    name?: string
+    src: string
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_OnlinestreamParams = {
+    mediaId: number
+    episodeNumber: number
+    provider: string
+    server: string
+    quality: string
+    dubbed: boolean
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_PlaybackInfo = {
+    id: string
+    target: Player_Target
+    renderer: Player_Renderer
+    playbackType: Player_PlaybackType
+    playbackUri?: string
+    streamUrl: string
+    streamPath?: string
+    mimeType?: string
+    contentLength?: number
+    mkvMetadata?: MKVParser_Metadata
+    subtitleTracks?: Array<Player_SubtitleTrack>
+    videoSources?: Array<Player_VideoSource>
+    selectedVideoSource?: number
+    playlistExternalEpisodeNumbers?: Array<number>
+    disableRestoreFromContinuity?: boolean
+    initialState?: Player_InitialState
+    entryListData?: Anime_EntryListData
+    media?: AL_BaseAnime
+    episode?: Anime_Episode
+    localFile?: Anime_LocalFile
+    onlinestreamParams?: Player_OnlinestreamParams
+    isNakamaWatchParty?: boolean
+    streamType?: string
+    libassFonts?: Array<Player_LibassFont>
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_PlaybackState = {
+    clientId: string
+    playbackInfo?: Player_PlaybackInfo
+    playerType?: string
+    currentProgress?: number
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_PlaybackStatus = {
+    id: string
+    clientId: string
+    paused: boolean
+    currentTime: number
+    duration: number
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_PlaybackType = "localfile" |
+    "torrent" |
+    "debrid" |
+    "nakama" |
+    "onlinestream" |
+    "url"
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_PlaylistState = {
+    type: Player_PlaybackType
+    episodes?: Array<Anime_Episode>
+    previousEpisode?: Anime_Episode
+    nextEpisode?: Anime_Episode
+    currentEpisode?: Anime_Episode
+    animeEntry?: Anime_Entry
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_Renderer = "web" | "native" | "mpv"
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_SkipData = {
+    op?: Player_SkipDataEntry
+    ed?: Player_SkipDataEntry
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_SkipDataEntry = {
+    interval: Player_SkipInterval
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_SkipInterval = {
+    startTime: number
+    endTime: number
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_SubtitleTrack = {
+    index: number
+    uri?: string
+    sourceUrl?: string
+    content?: string
+    label: string
+    language: string
+    format?: string
+    default?: boolean
+    src?: string
+    type?: string
+    useLibassRenderer?: boolean
+}
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_Target = "videocore" | "mpvcore"
+
+/**
+ * - Filepath: internal/player/types.go
+ * - Filename: types.go
+ * - Package: player
+ */
+export type Player_VideoSource = {
+    index: number
+    resolution: string
+    url?: string
+    label?: string
+    moreInfo?: string
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -5083,6 +5576,13 @@ export type TorrentClient_Torrent = {
     eta: string
     status: TorrentClient_TorrentStatus
     contentPath: string
+    peers: number
+    ratio: number
+    addedAt?: string
+    queueIndex: number
+    forceStart: boolean
+    sequential: boolean
+    error: string
 }
 
 /**
@@ -5090,7 +5590,13 @@ export type TorrentClient_Torrent = {
  * - Filename: torrent.go
  * - Package: torrent_client
  */
-export type TorrentClient_TorrentStatus = "downloading" | "seeding" | "paused" | "other" | "stopped"
+export type TorrentClient_TorrentStatus = "downloading" |
+    "seeding" |
+    "paused" |
+    "other" |
+    "stopped" |
+    "queued" |
+    "error"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Torrentstream
