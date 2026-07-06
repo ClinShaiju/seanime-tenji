@@ -13,6 +13,7 @@ export type ContinueWatchingSorting =
     | "START_DATE_DESC"
     | "LAST_WATCHED"
     | "LAST_WATCHED_DESC"
+    | "UP_NEXT_DESC"
 
 export type AnimeCollectionSorting =
     | "AIRDATE"
