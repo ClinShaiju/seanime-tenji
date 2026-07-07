@@ -27,7 +27,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     name: "Seanime",
     slug: "seanime-app",
     owner: "cvslinc",
-    version: "0.1.22",
+    version: "0.1.23",
     orientation: "portrait",
     icon: "./src/assets/images/icon.png",
     scheme: "seanime",
@@ -76,7 +76,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     android: {
         jsEngine: "hermes",
-        versionCode: 22,
+        versionCode: 23,
         usesCleartextTraffic: true,
         adaptiveIcon: {
             foregroundImage: "./src/assets/images/adaptive-icon.png",
