@@ -1,6 +1,7 @@
 import { AL_MediaSeason } from "@/api/generated/types"
-import { useAnilistListAnime, useAnilistListMissedSequels } from "@/api/hooks/anilist.hooks"
+import { useAnilistListAnime, useAnilistListMissedSequels, useAnilistListRecentAiringAnime } from "@/api/hooks/anilist.hooks"
 import { useAnilistListManga } from "@/api/hooks/manga.hooks"
+import { subDays } from "date-fns"
 
 /**
  * Returns the current AniList season and year based on the current month.
@@ -86,6 +87,19 @@ export function useDiscoverTrendingMovies(enabled: boolean = true) {
 
 export function useDiscoverMissedSequels(enabled: boolean = true) {
     return useAnilistListMissedSequels(enabled)
+}
+
+/**
+ * @description
+ * Anime that aired within the last 14 days, mirroring the web app's "Aired Recently" row.
+ */
+export function useDiscoverRecentReleases(enabled: boolean = true) {
+    return useAnilistListRecentAiringAnime({
+        page: 1,
+        perPage: 50,
+        airingAt_lesser: Math.floor(new Date().getTime() / 1000),
+        airingAt_greater: Math.floor(subDays(new Date(), 14).getTime() / 1000),
+    }, enabled)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

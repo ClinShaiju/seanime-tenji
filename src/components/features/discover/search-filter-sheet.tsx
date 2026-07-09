@@ -12,6 +12,8 @@ import {
     SEARCH_FORMATS_ANIME,
     SEARCH_FORMATS_MANGA,
     SEARCH_MEDIA_GENRES,
+    SEARCH_MEDIA_TAGS,
+    SEARCH_MIN_SCORES,
     SEARCH_SEASONS,
     SEARCH_SORTING_ANIME,
     SEARCH_SORTING_MANGA,
@@ -57,6 +59,15 @@ export function SearchFilterSheet({
             genre: d.genre.includes(genre)
                 ? d.genre.filter(g => g !== genre)
                 : [...d.genre, genre],
+        }))
+    }
+
+    function toggleTag(tag: string) {
+        setDraft(d => ({
+            ...d,
+            tags: d.tags.includes(tag)
+                ? d.tags.filter(t => t !== tag)
+                : [...d.tags, tag],
         }))
     }
 
@@ -198,6 +209,24 @@ export function SearchFilterSheet({
                         options={SEARCH_MEDIA_GENRES.map(g => ({ value: g, label: g }))}
                         values={draft.genre}
                         onToggle={toggleGenre}
+                    />
+                </FormField>
+
+                <FormField label="Tags" icon="pricetag-outline">
+                    <MultiToggle
+                        options={SEARCH_MEDIA_TAGS
+                            .filter(tag => (draft.isAdult && serverStatus?.settings?.anilist?.enableAdultContent) ? true : !tag.isAdult)
+                            .map(tag => ({ value: tag.name, label: tag.name }))}
+                        values={draft.tags}
+                        onToggle={toggleTag}
+                    />
+                </FormField>
+
+                <FormField label="Minimum Score" icon="star-outline">
+                    <InlineSelect
+                        options={SEARCH_MIN_SCORES}
+                        value={draft.minScore}
+                        onSelect={v => setDraft(d => ({ ...d, minScore: v }))}
                     />
                 </FormField>
 

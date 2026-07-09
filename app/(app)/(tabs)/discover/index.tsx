@@ -12,6 +12,7 @@ import {
     useDiscoverCurrentSeasonAnime,
     useDiscoverMissedSequels,
     useDiscoverPastSeasonAnime,
+    useDiscoverRecentReleases,
     useDiscoverTrendingAnime,
     useDiscoverTrendingManga,
     useDiscoverTrendingMovies,
@@ -49,6 +50,7 @@ const DISCOVER_ANIME_SECTION_ITEMS = [
     { key: "upcoming" },
     { key: "movies" },
     { key: "missed" },
+    { key: "recent-releases" },
 ] as const
 const DISCOVER_MANGA_SECTION_ITEMS = [
     { key: "jp" },
@@ -403,6 +405,7 @@ function DiscoverAnimeSections({
     const missedEnabled = isSectionActivated(3)
     const upcomingEnabled = isSectionActivated(4)
     const moviesEnabled = isSectionActivated(5)
+    const recentReleasesEnabled = isSectionActivated(6)
 
     const { data: trending, isLoading: trendingLoading } = useDiscoverTrendingAnime(
         trendingEnabled,
@@ -413,6 +416,7 @@ function DiscoverAnimeSections({
     const { data: missedSequels, isLoading: missedLoading } = useDiscoverMissedSequels(missedEnabled)
     const { data: upcoming, isLoading: upcomingLoading } = useDiscoverUpcomingAnime(upcomingEnabled)
     const { data: movies, isLoading: moviesLoading } = useDiscoverTrendingMovies(moviesEnabled)
+    const { data: recentReleases, isLoading: recentReleasesLoading } = useDiscoverRecentReleases(recentReleasesEnabled)
 
     const trendingMedia = trending?.Page?.media?.filter(Boolean) ?? []
     const currentSeasonMedia = currentSeason?.Page?.media?.filter(Boolean) ?? []
@@ -420,6 +424,18 @@ function DiscoverAnimeSections({
     const missedMedia = missedSequels ?? []
     const upcomingMedia = upcoming?.Page?.media?.filter(Boolean) ?? []
     const moviesMedia = movies?.Page?.media?.filter(Boolean) ?? []
+    const recentReleasesMedia = React.useMemo(() => {
+        const seen = new Set<number>()
+        const result: AL_BaseAnime[] = []
+        for (const schedule of recentReleases?.Page?.airingSchedules ?? []) {
+            const media = schedule?.media
+            if (!media || media.isAdult || media.type !== "ANIME" || media.countryOfOrigin !== "JP" || media.format === "TV_SHORT") continue
+            if (seen.has(media.id)) continue
+            seen.add(media.id)
+            result.push(media)
+        }
+        return result
+    }, [recentReleases])
     const trendingGenreOptions = React.useMemo(
         () => [
             { label: "All", value: null },
@@ -530,10 +546,25 @@ function DiscoverAnimeSections({
                             hideCount
                         />
                     )
+                case "recent-releases":
+                    return (
+                        <DiscoverHorizontalSection
+                            title="Aired Recently"
+                            type="anime"
+                            enabled={recentReleasesEnabled}
+                            isLoading={recentReleasesLoading}
+                            sectionIndex={6}
+                            media={recentReleasesMedia}
+                            onMediaPress={(m) => router.push(`/(app)/entry/anime/${m.id}`)}
+                            showAudienceScore
+                            hideCount
+                        />
+                    )
             }
         },
         [currentSeasonEnabled, currentSeasonLoading, currentSeasonMedia, missedEnabled, missedLoading, missedMedia, moviesEnabled, moviesLoading,
-            moviesMedia, onChangeTrendingGenre, pastSeasonEnabled, pastSeasonLoading, pastSeasonMedia, selectedTrendingGenre, trendingEnabled,
+            moviesMedia, onChangeTrendingGenre, pastSeasonEnabled, pastSeasonLoading, pastSeasonMedia, recentReleasesEnabled, recentReleasesLoading,
+            recentReleasesMedia, selectedTrendingGenre, trendingEnabled,
             trendingGenreOptions, trendingLoading, trendingMedia, upcomingEnabled, upcomingLoading, upcomingMedia])
 
     return (

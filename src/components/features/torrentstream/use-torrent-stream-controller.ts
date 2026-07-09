@@ -908,6 +908,7 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
         streamMode,
         torrents: searchData?.torrents ?? [],
         torrentMetadataByInfoHash,
+        debridInstantAvailability: searchData?.debridInstantAvailability ?? {},
         torrentstreamSettings: serverStatus?.torrentstreamSettings,
         canUsePreviousBatch,
         usePreviousBatch,

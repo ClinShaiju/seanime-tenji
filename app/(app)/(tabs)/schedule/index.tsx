@@ -1,7 +1,11 @@
-import { AL_BaseAnime, AL_MediaListStatus, Anime_ScheduleItem } from "@/api/generated/types"
+import { AL_BaseAnime, AL_MediaListStatus, Anime_Episode, Anime_ScheduleItem, Anime_UpcomingEpisode, Status } from "@/api/generated/types"
 import { useGetAnimeCollectionSchedule } from "@/api/hooks/anime_collection.hooks"
+import { useGetMissingEpisodes, useGetUpcomingEpisodes } from "@/api/hooks/anime_entries.hooks"
 import { useAnilistAnimeEntryListDataAtom } from "@/atoms/anilist-collection.atoms"
 import { ScheduleSettings, scheduleSettingsAtom } from "@/atoms/schedule.atoms"
+import { useServerStatus } from "@/atoms/server.atoms"
+import { EpisodeCard } from "@/components/features/anime/episode-card"
+import { EpisodeCardList } from "@/components/features/anime/episode-card-list"
 import { MediaEntryCard } from "@/components/features/media/media-entry-card"
 import { SafeView } from "@/components/layout/layout-view"
 import { TabFadeView } from "@/components/layout/tab-fade-view"
@@ -11,10 +15,12 @@ import { RowDivider } from "@/components/shared/row-divider"
 import { Surface } from "@/components/shared/surface"
 import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
+import { getEpisodeSpoilerState } from "@/lib/anime-spoilers"
 import { useIsServerConnected } from "@/lib/offline"
+import { getThemeSetting } from "@/lib/theme-settings"
 import { cn } from "@/lib/utils"
 import Ionicons from "@expo/vector-icons/Ionicons"
-import { addDays, addWeeks, format, isSameDay, setMonth, setYear, startOfWeek, subWeeks } from "date-fns"
+import { addDays, addSeconds, addWeeks, format, formatDistanceToNow, isSameDay, setMonth, setYear, startOfWeek, subWeeks } from "date-fns"
 import { router } from "expo-router"
 import { useAtom } from "jotai/react"
 import sortBy from "lodash/sortBy"
@@ -31,12 +37,29 @@ const ROW_HEIGHT = CARD_WIDTH * 1.5 + GRID_SPACING
 
 export default function ScheduleScreen() {
     const isConnected = useIsServerConnected()
+    const serverStatus = useServerStatus()
     const {
         data: schedule,
         isLoading,
         isFetching,
         refetch,
     } = useGetAnimeCollectionSchedule({ enabled: isConnected })
+
+    const { data: missingData, isLoading: missingLoading } = useGetMissingEpisodes(isConnected)
+    const { data: upcomingData, isLoading: upcomingLoading } = useGetUpcomingEpisodes()
+
+    // mirrors the web app's useHandleMissingEpisodes: hide adult entries unless the user opted in
+    const missingEpisodes = React.useMemo(() => {
+        const episodes = missingData?.episodes ?? []
+        return serverStatus?.settings?.anilist?.enableAdultContent
+            ? episodes
+            : episodes.filter((episode) => !episode.baseAnime?.isAdult)
+    }, [missingData, serverStatus?.settings?.anilist?.enableAdultContent])
+
+    const upcomingEpisodes = upcomingData?.episodes ?? []
+
+    // mirrors the web app's useMissingEpisodeSpoilers (spoiler state ignores per-entry progress)
+    const missingSpoilerActive = getThemeSetting(serverStatus, "hideAnimeSpoilers")
 
     useIOSScrollRefreshRateWorkaround()
 
@@ -133,6 +156,12 @@ export default function ScheduleScreen() {
             <SafeView>
                 <OfflineBanner />
 
+                <MissingEpisodesRow
+                    episodes={missingEpisodes}
+                    isLoading={missingLoading}
+                    spoilerActive={missingSpoilerActive}
+                />
+
                 <View className="flex-row items-center justify-between px-4 pt-2 pb-1">
                     <Pressable onPress={goToToday} className="p-2" hitSlop={12}>
                         <Ionicons name="today-outline" size={22} color="rgba(255,255,255,0.8)" />
@@ -193,6 +222,13 @@ export default function ScheduleScreen() {
                         refreshControl={refreshControl}
                     />
                 )}
+
+                <UpcomingEpisodesRow
+                    episodes={upcomingEpisodes}
+                    isLoading={upcomingLoading}
+                    spoilerActive={missingSpoilerActive}
+                    serverStatus={serverStatus}
+                />
 
                 <ScheduleSettingsSheet
                     open={settingsOpen}
@@ -398,6 +434,124 @@ function ScheduleCardWrapper({
                     )}
                 </View>}
             />
+        </View>
+    )
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Missing / Upcoming episodes
+///////////////////////////////////////////////////////////////////////////////
+
+function MissingEpisodesRow({
+    episodes,
+    isLoading,
+    spoilerActive,
+}: {
+    episodes: Anime_Episode[]
+    isLoading: boolean
+    spoilerActive: boolean
+}) {
+    if (isLoading || !episodes.length) return null
+
+    return (
+        <EpisodeCardList
+            title="Missing from your library"
+            episodes={episodes}
+            spoilerActive={spoilerActive}
+            showAnimeTitle
+            onEpisodePress={(episode) => {
+                if (episode.baseAnime?.id) {
+                    router.push(`/(app)/entry/anime/${episode.baseAnime.id}`)
+                }
+            }}
+        />
+    )
+}
+
+const UPCOMING_CARD_WIDTH = (3.5 / 5) * SCREEN_WIDTH
+const UPCOMING_CARD_SPACING = 20
+const UPCOMING_ITEM_FULL_WIDTH = UPCOMING_CARD_WIDTH + UPCOMING_CARD_SPACING
+const UPCOMING_CARD_ROW_HEIGHT = Math.ceil(UPCOMING_CARD_WIDTH * (9 / 16) + 60)
+
+function UpcomingEpisodesRow({
+    episodes,
+    isLoading,
+    spoilerActive,
+    serverStatus,
+}: {
+    episodes: Anime_UpcomingEpisode[]
+    isLoading: boolean
+    spoilerActive: boolean
+    serverStatus: Status | null | undefined
+}) {
+    const getItemLayout = React.useCallback((_: ArrayLike<Anime_UpcomingEpisode> | null | undefined, index: number) => ({
+        length: UPCOMING_ITEM_FULL_WIDTH,
+        offset: UPCOMING_ITEM_FULL_WIDTH * index,
+        index,
+    }), [])
+
+    const renderItem = React.useCallback(({ item }: { item: Anime_UpcomingEpisode }) => {
+        const spoiler = getEpisodeSpoilerState(serverStatus, {
+            episodeNumber: item.episodeNumber,
+            spoilerActive,
+        })
+        const image = item.episodeMetadata?.image || item.baseAnime?.bannerImage || item.baseAnime?.coverImage?.large || ""
+
+        return (
+            <EpisodeCard
+                cardWidth={UPCOMING_CARD_WIDTH}
+                image={image}
+                imageBlurred={spoiler.hideThumbnail}
+                title={`Episode ${item.episodeNumber}`}
+                episodeNumber={item.episodeNumber}
+                totalEpisodes={item.baseAnime?.episodes}
+                length={item.episodeMetadata?.length}
+                animeTitle={item.baseAnime?.title?.userPreferred}
+                thumbnailOverlay={item.timeUntilAiring != null
+                    ? <View className="absolute right-2 top-2 bg-black/70 rounded px-1.5 py-0.5">
+                        <Text className="text-[11px] font-bold text-white/80">
+                            {formatDistanceToNow(addSeconds(new Date(), item.timeUntilAiring), { addSuffix: true })}
+                        </Text>
+                    </View>
+                    : null}
+                onPress={() => {
+                    if (item.mediaId) {
+                        router.push(`/(app)/entry/anime/${item.mediaId}`)
+                    }
+                }}
+            />
+        )
+    }, [serverStatus, spoilerActive])
+
+    if (isLoading || !episodes.length) return null
+
+    return (
+        <View>
+            <View className="p-4">
+                <Text className="text-2xl font-bold text-foreground">Upcoming episodes</Text>
+            </View>
+            <View style={{ height: UPCOMING_CARD_ROW_HEIGHT }}>
+                <FlatList
+                    data={episodes}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(item, index) => `${item.mediaId}-${item.episodeNumber}-${index}`}
+                    renderItem={renderItem}
+                    contentContainerStyle={{ paddingHorizontal: UPCOMING_CARD_SPACING }}
+                    ItemSeparatorComponent={() => <View style={{ width: UPCOMING_CARD_SPACING }} />}
+                    getItemLayout={getItemLayout}
+                    initialNumToRender={3}
+                    maxToRenderPerBatch={3}
+                    windowSize={5}
+                    removeClippedSubviews
+                    snapToInterval={UPCOMING_ITEM_FULL_WIDTH}
+                    snapToAlignment="start"
+                    decelerationRate="fast"
+                    directionalLockEnabled
+                    disableIntervalMomentum
+                />
+            </View>
         </View>
     )
 }

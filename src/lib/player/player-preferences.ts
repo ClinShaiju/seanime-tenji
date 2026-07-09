@@ -44,6 +44,11 @@ export type PlayerPreferences = {
     centerTapPlayPause: boolean
     /** Whether side vertical swipes adjust brightness and volume. */
     sideSwipeBrightnessVolume: boolean
+    /**
+     * Last brightness (0–1) set via the in-player gesture, re-applied on the next
+     * player open so it survives across sessions. Null = never set, use system.
+     */
+    playerBrightness: number | null
     autoSkipOpEd: boolean
     /** User-provided Wyzie Subs API key for external subtitle search. */
     wyzieApiKey: string
@@ -71,6 +76,7 @@ const DEFAULTS: PlayerPreferences = {
     autoNextEpisode: true,
     centerTapPlayPause: true,
     sideSwipeBrightnessVolume: true,
+    playerBrightness: null,
     autoSkipOpEd: false,
     wyzieApiKey: "",
     externalPlayerTemplate: null,

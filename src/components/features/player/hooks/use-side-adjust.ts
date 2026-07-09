@@ -5,6 +5,7 @@ import React from "react"
 import { Platform } from "react-native"
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated"
 import { VolumeManager } from "react-native-volume-manager"
+import { getPlayerPreferences, setPlayerPreferences } from "@/lib/player/player-preferences"
 import { SIDE_ADJUST_FEEDBACK_HIDE_DELAY } from "../constants"
 import { clamp } from "../helpers"
 import type { SideAdjustKind } from "../types"
@@ -46,10 +47,27 @@ export function useSideAdjust() {
                     brightnessLevelRef.current = brightness
                     didSyncBrightnessRef.current = true
                     if (!hasInitialBrightnessRef.current && !didOverrideBrightnessRef.current) {
+                        // Capture the true pre-player system brightness so it can be
+                        // restored when the player closes.
                         initialBrightnessRef.current = brightness
                         hasInitialBrightnessRef.current = true
                     }
                     sideAdjustProgress.set(brightness)
+
+                    // Re-apply the brightness the user last chose in the player so it
+                    // survives across sessions instead of snapping back to system.
+                    const saved = getPlayerPreferences().playerBrightness
+                    if (saved !== null && !didOverrideBrightnessRef.current) {
+                        const level = clamp(saved, 0, 1)
+                        brightnessLevelRef.current = level
+                        didOverrideBrightnessRef.current = true
+                        sideAdjustProgress.set(level)
+                        if (Platform.OS === "android") {
+                            MpvPlayerModule.setWindowBrightness(level)
+                        } else {
+                            void Brightness.setBrightnessAsync(level).catch(() => undefined)
+                        }
+                    }
                 }
             }
             catch {
@@ -159,6 +177,12 @@ export function useSideAdjust() {
     const scheduleSideAdjustHide = React.useCallback(() => {
         clearSideAdjustHideTimer()
         flushPendingBrightness()
+
+        // Persist the brightness the user settled on so the next player session
+        // opens at the same level (see the re-apply in the sync effect above).
+        if (didOverrideBrightnessRef.current) {
+            setPlayerPreferences({ playerBrightness: brightnessLevelRef.current })
+        }
 
         if (Platform.OS === "android") {
             setTimeout(() => {

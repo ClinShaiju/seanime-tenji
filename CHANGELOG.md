@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.1.24
+
+- ⚡️ Player: Pause playback when the device is locked/turned off (background audio while using other apps still works)
+- ⚡️ Player: Remember the brightness set via gestures across playback sessions
+- ⚡️ Torrent search: Cached/Uncached filter and instant-availability badge for debrid
+- ⚡️ Discover: "Aired Recently" row
+- ⚡️ Schedule: Missing Episodes and Upcoming Episodes sections
+- ⚡️ Search: Tags and Minimum Score filters
+
 ## v0.1.21
 
 - ⚡️ Refactored support for mobile server downloads

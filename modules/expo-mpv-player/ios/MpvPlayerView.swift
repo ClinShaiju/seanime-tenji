@@ -44,6 +44,7 @@ final class MpvSurfaceExpoView: ExpoView, MPVLayerRendererDelegate, PiPControlle
     private let nowPlayingManager = MPVNowPlayingManager.shared
     private var lastNowPlayingSyncAt: CFAbsoluteTime = 0
     private var lastLayoutSize: CGSize = .zero
+    private var lockObserver: NSObjectProtocol?
 
     // Pending config waiting for renderer to start
     private var pendingConfig: VideoLoadConfig?
@@ -68,6 +69,20 @@ final class MpvSurfaceExpoView: ExpoView, MPVLayerRendererDelegate, PiPControlle
 
         // Audio session
         configureAudioSession()
+
+        // Pause when the device is locked / screen turned off. This fires only on
+        // lock (Data Protection sealing) — NOT when the user switches to another app —
+        // so background audio during multitasking keeps working.
+        // ponytail: relies on a device passcode; without one Data Protection never
+        // seals and the notification won't fire. That's the standard iOS lock signal.
+        lockObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.protectedDataWillBecomeUnavailableNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, !(self.renderer?.isPausedState ?? true) else { return }
+            self.pause()
+        }
     }
 
     override func layoutSubviews() {
@@ -86,6 +101,9 @@ final class MpvSurfaceExpoView: ExpoView, MPVLayerRendererDelegate, PiPControlle
     }
 
     deinit {
+        if let lockObserver {
+            NotificationCenter.default.removeObserver(lockObserver)
+        }
         clearNowPlayingInfo()
         renderer?.stop()
         renderer = nil

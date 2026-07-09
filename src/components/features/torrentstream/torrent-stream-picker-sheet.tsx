@@ -1,5 +1,6 @@
 import {
     Anime_Episode,
+    Debrid_TorrentItemInstantAvailability,
     DebridClient_FilePreview,
     ExtensionRepo_AnimeTorrentProviderExtensionItem,
     Habari_Metadata,
@@ -65,6 +66,7 @@ type TorrentStreamPickerSheetProps = {
     supportsSmartSearch: boolean
     torrents: HibikeTorrent_AnimeTorrent[]
     torrentMetadataByInfoHash?: Record<string, Habari_Metadata | undefined>
+    debridInstantAvailability?: Record<string, Debrid_TorrentItemInstantAvailability>
     usePreviousBatch: boolean
     resolution: TorrentResolution
     mode?: "stream" | "download"
@@ -126,6 +128,7 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
         supportsSmartSearch,
         torrents,
         torrentMetadataByInfoHash,
+        debridInstantAvailability,
         usePreviousBatch,
         resolution,
         mode = "stream",
@@ -347,6 +350,7 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
                         supportsSmartSearch={supportsSmartSearch}
                         torrents={torrents}
                         torrentMetadataByInfoHash={torrentMetadataByInfoHash}
+                        debridInstantAvailability={debridInstantAvailability}
                         usePreviousBatch={usePreviousBatch}
                         searchAcrossProviders={searchAcrossProviders}
                         onToggleSearchAcrossProviders={onToggleSearchAcrossProviders}
@@ -412,6 +416,7 @@ type TorrentSelectionStageProps = {
     supportsSmartSearch: boolean
     torrents: HibikeTorrent_AnimeTorrent[]
     torrentMetadataByInfoHash?: Record<string, Habari_Metadata | undefined>
+    debridInstantAvailability?: Record<string, Debrid_TorrentItemInstantAvailability>
     usePreviousBatch: boolean
     searchAcrossProviders: boolean
     onToggleSearchAcrossProviders: () => void
@@ -428,6 +433,7 @@ type TorrentSelectionStageProps = {
 
 function TorrentSelectionStage(props: TorrentSelectionStageProps) {
     const [isFiltersExpanded, setIsFiltersExpanded] = React.useState(false)
+    const [cachedFilter, setCachedFilter] = React.useState<"all" | "cached" | "uncached">("all")
     const {
         batchHistory,
         batchHistoryMetadata,
@@ -457,6 +463,7 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
         supportsSmartSearch,
         torrents,
         torrentMetadataByInfoHash,
+        debridInstantAvailability,
         usePreviousBatch,
         searchAcrossProviders,
         onToggleSearchAcrossProviders,
@@ -489,8 +496,26 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
         [providerOptions],
     )
 
+    // Debrid instant-availability: a torrent is "cached" (instant play) when its
+    // infoHash is present in the availability map (mirrors seanime-web).
+    const isCached = React.useCallback(
+        (torrent: HibikeTorrent_AnimeTorrent) => !!(torrent.infoHash && debridInstantAvailability?.[torrent.infoHash]),
+        [debridInstantAvailability],
+    )
+    const cachedCount = React.useMemo(
+        () => torrents.reduce((n, t) => n + (isCached(t) ? 1 : 0), 0),
+        [torrents, isCached],
+    )
+    // Only offer the filter when in debrid mode and something is actually cached.
+    const showCacheFilter = streamMode === "debrid" && cachedCount > 0
+
+    const visibleTorrents = React.useMemo(() => {
+        if (!showCacheFilter || cachedFilter === "all") return torrents
+        return torrents.filter(t => (cachedFilter === "cached" ? isCached(t) : !isCached(t)))
+    }, [torrents, showCacheFilter, cachedFilter, isCached])
+
     const releaseCards = React.useMemo(() => {
-        return torrents.map((torrent, index) => {
+        return visibleTorrents.map((torrent, index) => {
             const isSelected = selectedTorrent?.infoHash === torrent.infoHash && selectedTorrent?.downloadUrl === torrent.downloadUrl
 
             return (
@@ -503,11 +528,12 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                         episodes={episodes}
                         metadata={torrent.infoHash ? torrentMetadataByInfoHash?.[torrent.infoHash] : undefined}
                         isSelected={isSelected}
+                        cached={streamMode === "debrid" && isCached(torrent)}
                     />
                 </Pressable>
             )
         })
-    }, [episodes, onSelectTorrent, selectedTorrent?.downloadUrl, selectedTorrent?.infoHash, torrentMetadataByInfoHash, torrents])
+    }, [episodes, onSelectTorrent, selectedTorrent?.downloadUrl, selectedTorrent?.infoHash, torrentMetadataByInfoHash, visibleTorrents, streamMode, isCached])
 
     const segmentedOptions = React.useMemo(() => [
         { value: "torrent", label: "Torrent Client" },
@@ -738,6 +764,14 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                     </Pressable>
                 </View>
 
+                {showCacheFilter && !isSearching && (
+                    <ChipWrap>
+                        <ChoiceChip label={`All (${torrents.length})`} active={cachedFilter === "all"} onPress={() => setCachedFilter("all")} />
+                        <ChoiceChip label={`Cached (${cachedCount})`} active={cachedFilter === "cached"} onPress={() => setCachedFilter("cached")} />
+                        <ChoiceChip label="Uncached" active={cachedFilter === "uncached"} onPress={() => setCachedFilter("uncached")} />
+                    </ChipWrap>
+                )}
+
                 {selectedProviderId === NONE_PROVIDER ? (
                     <SurfaceMessage text="Select a provider to search for torrents." tone="muted" />
                 ) : isSearching ? (
@@ -749,6 +783,11 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                     <View className="py-16 items-center gap-2">
                         <Ionicons name="search-outline" size={32} color="rgba(255,255,255,0.15)" />
                         <Text className="text-sm text-white/35">No torrents found for this episode</Text>
+                    </View>
+                ) : releaseCards.length === 0 ? (
+                    <View className="py-16 items-center gap-2">
+                        <Ionicons name="filter-outline" size={32} color="rgba(255,255,255,0.15)" />
+                        <Text className="text-sm text-white/35">No {cachedFilter} releases</Text>
                     </View>
                 ) : (
                     <View className="gap-2.5">{releaseCards}</View>
@@ -1264,11 +1303,13 @@ function TorrentCard({
     episodes,
     metadata,
     isSelected,
+    cached = false,
 }: {
     torrent: HibikeTorrent_AnimeTorrent
     episodes: Anime_Episode[]
     metadata?: Habari_Metadata
     isSelected: boolean
+    cached?: boolean
 }) {
     const cardTitle = React.useMemo(() => getTorrentCardTitle(torrent, metadata, episodes), [episodes, torrent, metadata])
     const displayReleaseGroup = metadata?.release_group || torrent.releaseGroup || ""
@@ -1317,6 +1358,16 @@ function TorrentCard({
 
                 <View className="gap-1.5 mt-1">
                     <View className="flex-row items-center gap-2.5 flex-wrap">
+                        {cached && (
+                            <View
+                                className="rounded-md px-1.5 py-0.5 flex-row items-center gap-1"
+                                style={{ backgroundColor: "rgba(16,185,129,0.16)" }}
+                            >
+                                <Ionicons name="flash" size={11} color="#6ee7b7" />
+                                <Text className="text-[11px] font-medium" style={{ color: "#6ee7b7" }}>Cached</Text>
+                            </View>
+                        )}
+
                         {torrent.isBestRelease && (
                             <View
                                 className="rounded-md px-1.5 py-0.5 flex-row items-center gap-1"

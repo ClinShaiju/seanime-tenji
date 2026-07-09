@@ -270,6 +270,7 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                 supportsSmartSearch={torrentStream.selectedProviderSupportsSmartSearch}
                 torrents={torrentStream.torrents}
                 torrentMetadataByInfoHash={torrentStream.torrentMetadataByInfoHash}
+                debridInstantAvailability={torrentStream.debridInstantAvailability}
                 usePreviousBatch={torrentStream.usePreviousBatch}
                 resolution={torrentStream.resolution}
                 searchAcrossProviders={torrentStream.searchAcrossProviders}
