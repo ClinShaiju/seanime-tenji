@@ -48,6 +48,10 @@ export type PlayerPreferences = {
      */
     playerBrightness: number | null
     autoSkipOpEd: boolean
+    /** Whether the seek bar renders chapter segment markers. Default true. */
+    showChapterMarkers: boolean
+    /** Whether OP/ED chapters are tinted on the seek bar. Default true. */
+    highlightOpEdChapters: boolean
     /** User-provided Wyzie Subs API key for external subtitle search. */
     wyzieApiKey: string
     /**
@@ -75,6 +79,8 @@ const DEFAULTS: PlayerPreferences = {
     sideSwipeBrightnessVolume: true,
     playerBrightness: null,
     autoSkipOpEd: false,
+    showChapterMarkers: true,
+    highlightOpEdChapters: true,
     wyzieApiKey: "",
     externalPlayerTemplate: null,
 }
@@ -107,6 +113,16 @@ export function setPlayerPreferences(update: Partial<PlayerPreferences>) {
 
 export function usePlayerPreferences() {
     const [prefs, setPrefsState] = React.useState(getPlayerPreferences)
+
+    // Keep every mounted instance of this hook in sync — a toggle flipped from one place (e.g.
+    // the settings panel) must be reflected immediately by another already-mounted consumer
+    // (e.g. the always-on seek-bar overlay), not just on its next remount.
+    React.useEffect(() => {
+        const listener = storage.addOnValueChangedListener((key: string) => {
+            if (key === STORAGE_KEY) setPrefsState(getPlayerPreferences())
+        })
+        return () => listener.remove()
+    }, [])
 
     const updatePrefs = React.useCallback((update: Partial<PlayerPreferences>) => {
         setPrefsState((prev: PlayerPreferences) => {

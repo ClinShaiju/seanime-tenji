@@ -1,4 +1,5 @@
 import type { PlayerChapter, PlayerState as PlayerStateType } from "@/lib/player"
+import { usePlayerPreferences } from "@/lib/player/player-preferences"
 import type { MobilePlaybackSource } from "@/lib/player/types"
 import { cn } from "@/lib/utils"
 import { ChevronLeft, List, Pause, Play, Settings, SkipForward, Unlock } from "lucide-react-native"
@@ -97,6 +98,7 @@ const SeekBarTrack = React.memo(function SeekBarTrack({
     seekBarThumbStyle,
     segments,
     seekBarProgress,
+    highlightOpEd,
 }: {
     seekBarGesture: GestureType | ComposedGesture
     onSeekBarLayout: (e: { nativeEvent: { layout: { width: number } } }) => void
@@ -105,6 +107,7 @@ const SeekBarTrack = React.memo(function SeekBarTrack({
     seekBarThumbStyle: AnimatedStyle<ViewStyle>
     segments: SeekBarSegment[]
     seekBarProgress: SharedValue<number>
+    highlightOpEd: boolean
 }) {
     return (
         <GestureDetector gesture={seekBarGesture}>
@@ -124,7 +127,7 @@ const SeekBarTrack = React.memo(function SeekBarTrack({
 
                 <Animated.View className="w-full flex-row items-center gap-[3px]" style={seekBarTrackStyle}>
                     {segments.map((segment, index) => {
-                        const skippable = isSkippableChapter(segment.title)
+                        const skippable = highlightOpEd && isSkippableChapter(segment.title)
                         return (
                             <View
                                 key={index}
@@ -223,6 +226,12 @@ function ControlsOverlayComponent(props: ControlsOverlayProps) {
         opacity: withTiming(visible ? 1 : 0, { duration: 150 }),
     }))
 
+    // Player Appearance preferences (settings panel: player-panel.tsx). Both default true to
+    // preserve the pre-existing always-on rendering.
+    const [prefs] = usePlayerPreferences()
+    const showChapterMarkers = prefs.showChapterMarkers
+    const highlightOpEd = prefs.highlightOpEdChapters
+
     const extendHudPastHorizontalSafeArea = Platform.OS === "ios" && zoomMode === "fill"
     const padL = extendHudPastHorizontalSafeArea ? 24 : insets.left + 16
     const padR = extendHudPastHorizontalSafeArea ? 24 : insets.right + 16
@@ -231,7 +240,7 @@ function ControlsOverlayComponent(props: ControlsOverlayProps) {
 
     const segments = React.useMemo<SeekBarSegment[]>(() => {
         const duration = state.duration || 1
-        if (!chapters || chapters.length === 0) {
+        if (!showChapterMarkers || !chapters || chapters.length === 0) {
             return [{
                 id: 0,
                 title: undefined as string | undefined,
@@ -262,7 +271,7 @@ function ControlsOverlayComponent(props: ControlsOverlayProps) {
             })
         }
         return list
-    }, [chapters, state.duration])
+    }, [chapters, state.duration, showChapterMarkers])
 
     return (
         <Animated.View
@@ -357,6 +366,7 @@ function ControlsOverlayComponent(props: ControlsOverlayProps) {
                         seekBarThumbStyle={seekBarThumbStyle}
                         segments={segments}
                         seekBarProgress={seekBarProgress}
+                        highlightOpEd={highlightOpEd}
                     />
                 </View>
 

@@ -5,6 +5,7 @@ import { hydrateSecureTokens } from "@/atoms/secure-tokens"
 import { SERVER_AUTH_TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY } from "@/atoms/server.atoms"
 import { getStoredTheme } from "@/atoms/storage"
 import { setAndroidNavigationBar } from "@/lib/android-navigation-bar"
+import { AnilistRateLimitBanner } from "@/components/shared/anilist-rate-limit-banner"
 import { AppReleaseUpdatePrompt } from "@/lib/app-release-updates"
 import { useConnectionStateMonitor } from "@/lib/connection-state"
 import { NAV_THEME } from "@/lib/constants"
@@ -127,6 +128,7 @@ export default function RootLayout() {
                                 <ServerUrlWrapper>
                                     <OtaUpdatePrompt />
                                     <AppReleaseUpdatePrompt />
+                                    <AnilistRateLimitBanner />
                                     <Slot />
                                     <PortalHost />
                                 </ServerUrlWrapper>

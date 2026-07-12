@@ -1,4 +1,6 @@
+import { useServerStatus } from "@/atoms/server.atoms"
 import { InlineSelect } from "@/components/shared/inline-select"
+import { LabeledSwitch } from "@/components/shared/labeled-switch"
 import { MultiToggle } from "@/components/shared/multi-toggle"
 import { SheetFooter, SheetFooterButton } from "@/components/shared/sheet-footer"
 import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
@@ -27,6 +29,7 @@ export function countActiveCollectionFilters(params: CollectionParams, type: "an
     if (params.format !== null) count++
     if (params.season !== null && type === "anime") count++
     if (params.year !== null) count++
+    if (params.isAdult) count++
     return count
 }
 
@@ -48,6 +51,7 @@ export function CollectionFilterSheet({
     onApply,
     tagOptions,
 }: CollectionFilterSheetProps) {
+    const serverStatus = useServerStatus()
     const [draft, setDraft] = React.useState(params)
 
     // sync draft when sheet opens
@@ -205,6 +209,14 @@ export function CollectionFilterSheet({
                             onToggle={toggleTag}
                         />
                     </FormField>
+                )}
+
+                {!!serverStatus?.settings?.anilist?.enableAdultContent && (
+                    <LabeledSwitch
+                        label="Adult Content"
+                        checked={draft.isAdult}
+                        onToggle={() => setDraft(d => ({ ...d, isAdult: !d.isAdult }))}
+                    />
                 )}
             </View>
         </SeaBottomSheet>

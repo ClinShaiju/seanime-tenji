@@ -7,6 +7,7 @@ import { TabFadeView } from "@/components/layout/tab-fade-view"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { LIBRARY_SEARCH_HEADER_BASE_HEIGHT, LibrarySearchHeader } from "@/components/shared/library-search-header"
 import { LuffyError } from "@/components/shared/luffy-error"
+import { MediaGenreSelector } from "@/components/shared/media-genre-selector"
 import { OfflineBanner } from "@/components/shared/offline-banner"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useMangaLibraryCollection } from "@/hooks/use-manga-library-collection"
@@ -33,6 +34,7 @@ export default function MangaLibraryScreen() {
     const [searchQuery, setSearchQuery] = React.useState("")
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
     const [isPullRefreshing, setIsPullRefreshing] = React.useState(false)
+    const [selectedGenre, setSelectedGenre] = React.useState<string | null>(null)
 
     const scrollY = useSharedValue(0)
     const scrollHandler = useAnimatedScrollHandler({
@@ -60,6 +62,19 @@ export default function MangaLibraryScreen() {
         [libraryCollectionList],
     )
 
+    // M8 — genre chips, re-derived locally from the collection (mirrors the Library tab).
+    const genreOptions = React.useMemo(() => {
+        const genreSet = new Set<string>()
+        for (const entry of allEntries) {
+            entry.media?.genres?.forEach(genre => { if (genre) genreSet.add(genre) })
+        }
+        return [
+            { label: "All", value: null },
+            ...Array.from(genreSet).sort().map(genre => ({ label: genre, value: genre })),
+        ]
+    }, [allEntries])
+    const showGenreSelector = allEntries.length > 2
+
     const searchResults = React.useMemo(() => {
         if (!deferredSearchQuery.trim()) return []
         return filterEntriesByTitle(allEntries, deferredSearchQuery)
@@ -74,9 +89,11 @@ export default function MangaLibraryScreen() {
     }, [libraryCollectionList])
 
     const shelfSections = React.useMemo<MangaShelfSection[]>(() => {
-        const buildMedia = (type: string) => (
-            libraryCollectionList.find(item => item.type === type)?.entries?.map(entry => entry.media!).filter(Boolean) ?? []
-        )
+        const buildMedia = (type: string) => {
+            let media = libraryCollectionList.find(item => item.type === type)?.entries?.map(entry => entry.media!).filter(Boolean) ?? []
+            if (selectedGenre) media = media.filter(m => m.genres?.includes(selectedGenre))
+            return media
+        }
 
         return [
             { key: "current", title: "Currently reading", media: buildMedia("CURRENT"), sectionIndex: 0 },
@@ -85,7 +102,7 @@ export default function MangaLibraryScreen() {
             { key: "completed", title: "Completed", media: buildMedia("COMPLETED"), sectionIndex: 3 },
             { key: "dropped", title: "Dropped", media: buildMedia("DROPPED"), sectionIndex: 4 },
         ].filter(section => section.media.length > 0)
-    }, [libraryCollectionList])
+    }, [libraryCollectionList, selectedGenre])
 
     useFocusEffect(
         React.useCallback(() => {
@@ -158,14 +175,23 @@ export default function MangaLibraryScreen() {
                             renderItem={renderShelfSection}
                             keyExtractor={(item) => item.key}
                             ListHeaderComponent={
-                                hasHero ? (
-                                    <LibraryHeroCarousel
-                                        type="manga"
-                                        mangaItems={currentlyReadingEntries}
-                                        isFocused={isFocused}
-                                        scrollY={scrollY}
-                                    />
-                                ) : null
+                                <View className="flex flex-col gap-4">
+                                    {hasHero && (
+                                        <LibraryHeroCarousel
+                                            type="manga"
+                                            mangaItems={currentlyReadingEntries}
+                                            isFocused={isFocused}
+                                            scrollY={scrollY}
+                                        />
+                                    )}
+                                    {isConnected && showGenreSelector && (
+                                        <MediaGenreSelector
+                                            options={genreOptions}
+                                            value={selectedGenre}
+                                            onChange={setSelectedGenre}
+                                        />
+                                    )}
+                                </View>
                             }
                             ListFooterComponent={<DownloadedMangaList />}
                             ListEmptyComponent={isConnected && currentlyReadingEntries.length === 0 ? (

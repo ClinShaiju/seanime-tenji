@@ -22,12 +22,16 @@ import { createGestureRefs, syncGestureRef } from "@/components/features/player/
 import { isLocalServer } from "@/lib/downloads"
 import { useIsServerConnected } from "@/lib/offline"
 import {
+    activeStreamSessionAtom,
     currentPlaybackSourceAtom,
     playerErrorAtom,
     playerLoadingMessageAtom,
+    torrentStreamLoadingTorrentNameAtom,
+    torrentStreamPendingInfoAtom,
     useActivePlaybackSource,
     useCleanupPlaybackSession,
 } from "@/lib/player"
+import { PlayerLoadingScreen } from "@/components/features/player/player-loading-screen"
 import type { PlayerChapter } from "@/lib/player"
 import { getLocalEpisodePlaybackSource } from "@/lib/player"
 import { usePlayerPreferences } from "@/lib/player/player-preferences"
@@ -46,7 +50,7 @@ import { useRouter } from "expo-router"
 import { useAtom, useAtomValue, useSetAtom } from "jotai/react"
 import { SkipForward } from "lucide-react-native"
 import React from "react"
-import { ActivityIndicator, Dimensions, Platform, StatusBar, Text, useWindowDimensions, View } from "react-native"
+import { ActivityIndicator, Dimensions, Platform, StatusBar, StyleSheet, Text, useWindowDimensions, View } from "react-native"
 import { Gesture, GestureDetector, GestureHandlerRootView, Pressable } from "react-native-gesture-handler"
 import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -129,11 +133,31 @@ function PlayerScreenInner() {
     const error = useAtomValue(playerErrorAtom)
     const [nextEpisodePrompt, setNextEpisodePrompt] = React.useState<NextEpisodePrompt | null>(null)
 
+    // Loading-screen artwork inputs. During the pre-first-frame window the truthful per-step status
+    // text lives on the stream-session atoms (the player's own message atom is vestigial), so read
+    // both and prefer whichever is present. mediaId falls back through the pending/active session
+    // for the (rare) case the player mounts before `source` resolves.
+    const streamLoadingTorrentName = useAtomValue(torrentStreamLoadingTorrentNameAtom)
+    const activeStreamSession = useAtomValue(activeStreamSessionAtom)
+    const pendingStreamInfo = useAtomValue(torrentStreamPendingInfoAtom)
+
     // player + prefs
     const [prefs, updatePrefs] = usePlayerPreferences()
     const player = useMpvPlayer()
     const { state } = player
     const playerSeekTo = player.seekTo
+
+    // Startup gate for the artwork loading screen: true once the current source has produced its
+    // first frame. Distinguishes the initial open (show the loading screen) from mid-playback
+    // rebuffers (which keep the small buffering spinner). Reset per source so next-episode re-opens
+    // show it again. Purely drives this loading overlay — not the shared player state machine.
+    const [playbackStarted, setPlaybackStarted] = React.useState(false)
+    React.useEffect(() => {
+        setPlaybackStarted(false)
+    }, [source?.id])
+    React.useEffect(() => {
+        if (state.status === "ready" || state.currentTime > 0.001) setPlaybackStarted(true)
+    }, [state.status, state.currentTime])
     const playerSetVideoZoom = player.setVideoZoom
     const playerSetSubtitlePosition = player.setSubtitlePosition
     const playerSetSubtitleMarginY = player.setSubtitleMarginY
@@ -973,6 +997,20 @@ function PlayerScreenInner() {
     const padL = extendHudPastHorizontalSafeArea ? 24 : insets.left + 16
     const padR = extendHudPastHorizontalSafeArea ? 24 : insets.right + 16
 
+    // Loading-screen inputs, shared by the pre-source fallback branch and the in-player startup
+    // overlay below.
+    const mediaIdForArtwork = source?.mediaId ?? pendingStreamInfo?.mediaId ?? activeStreamSession?.mediaId ?? null
+    const loadingStatusText = activeStreamSession?.message ?? loadingMessage ?? "Loading video…"
+    const loadingTorrentName = streamLoadingTorrentName ?? activeStreamSession?.torrentName ?? null
+    const loadingFallbackTitle = source?.media?.title?.userPreferred ?? pendingStreamInfo?.media?.title?.userPreferred ?? null
+    const loadingFallbackImage = source?.media?.bannerImage
+        ?? source?.media?.coverImage?.extraLarge
+        ?? pendingStreamInfo?.media?.bannerImage
+        ?? null
+    // Show the artwork loading screen while the video is opening for the first time (not on
+    // mid-playback rebuffers, which keep the small buffering spinner).
+    const showStartupLoadingScreen = !!source && !playbackStarted && !error && !isPiPActive
+
     // error screen
     if (error) {
         return (
@@ -987,13 +1025,19 @@ function PlayerScreenInner() {
         )
     }
 
-    // loading screen
+    // loading screen (pre-source fallback — the player is normally entered with a ready source, so
+    // the real loading visual is the startup overlay below; this covers the rare no-source case)
     if (loadingMessage && !source) {
         return (
-            <View className="flex-1 bg-black items-center justify-center">
+            <View className="flex-1 bg-black">
                 <StatusBar hidden />
-                <ActivityIndicator size="large" color="#ffffff" />
-                <Text className="text-white/70 mt-4 text-base">{loadingMessage}</Text>
+                <PlayerLoadingScreen
+                    mediaId={mediaIdForArtwork}
+                    statusText={loadingStatusText}
+                    torrentName={loadingTorrentName}
+                    fallbackTitle={loadingFallbackTitle}
+                    fallbackImage={loadingFallbackImage}
+                />
             </View>
         )
     }
@@ -1029,6 +1073,25 @@ function PlayerScreenInner() {
                     <View className="absolute inset-0 items-center justify-center" pointerEvents="none">
                         <ActivityIndicator size="large" color="#ffffff" />
                     </View>
+                )}
+
+                {/* Stremio-style artwork loading screen while the video opens for the first time.
+                    Overlays the mounted MpvPlayerView (which must stay mounted to load) and hides
+                    once the first frame arrives. */}
+                {showStartupLoadingScreen && (
+                    <Animated.View
+                        style={StyleSheet.absoluteFill}
+                        exiting={FadeOut.duration(250)}
+                        pointerEvents="none"
+                    >
+                        <PlayerLoadingScreen
+                            mediaId={mediaIdForArtwork}
+                            statusText={loadingStatusText}
+                            torrentName={loadingTorrentName}
+                            fallbackTitle={loadingFallbackTitle}
+                            fallbackImage={loadingFallbackImage}
+                        />
+                    </Animated.View>
                 )}
 
 

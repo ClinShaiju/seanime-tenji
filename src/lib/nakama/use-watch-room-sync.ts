@@ -30,6 +30,11 @@ const SYNC_DEADBAND = 0.08
 const HARD_SEEK_DRIFT = 0.6
 const NUDGE_GAIN = 0.12
 const NUDGE_MAX = 0.05
+// After a heartbeat-driven hard seek, suppress the next one this long and let the speed nudge
+// converge instead — a directstream follower (debrid/torrent http) resets its server connection
+// on every seek, so back-to-back seeks thrash the stream. A discrete (user-initiated) seek always
+// applies. Mirrors web's nakama-room-sync.ts SEEK_COOLDOWN_MS.
+const SEEK_COOLDOWN_MS = 2500
 
 type RoomPlaybackSync = {
     roomId: string
@@ -100,6 +105,9 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
     // After we emit a stop, the player teardown flips paused/position and would emit a stray
     // status that makes followers re-follow (reopen). Suppress emits briefly after a stop.
     const suppressEmitUntilRef = React.useRef(0)
+    // The last time we applied a hard seek (discrete or heartbeat-driven) — gates the heartbeat
+    // hard-seek branch below (see SEEK_COOLDOWN_MS).
+    const lastHardSeekRef = React.useRef(0)
 
     // ---- Emit local control actions ----
     const emitNow = React.useCallback(() => {
@@ -249,13 +257,16 @@ export function useWatchRoomSync(player: SyncPlayer): WatchRoomGating {
             if (ad > APPLY_SEEK_THRESHOLD) {
                 action = `seek->${target.toFixed(1)}`
                 player.seekTo(target)
+                lastHardSeekRef.current = Date.now() // a heartbeat right after must not re-seek
             }
             setSpeedSafe(1) // a real action -> normal speed
-        } else if (drift > HARD_SEEK_DRIFT) {
-            // We fell BEHIND the driver -> snap forward.
+        } else if (drift > HARD_SEEK_DRIFT && (Date.now() - lastHardSeekRef.current) > SEEK_COOLDOWN_MS) {
+            // We fell BEHIND the driver -> snap forward once, then nudge-only until the cooldown
+            // elapses (prevents the directstream reset->rebuffer->reseek churn).
             action = `seek->${target.toFixed(1)}`
             player.seekTo(target)
             setSpeedSafe(1)
+            lastHardSeekRef.current = Date.now()
         } else if (drift < -HARD_SEEK_DRIFT) {
             // The driver is far BEHIND us: it's frozen/rebuffering but still heartbeating paused:false.
             // NEVER rewind to a stalled driver (the rubber-band) — keep playing; resync if it catches

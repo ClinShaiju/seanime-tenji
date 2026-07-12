@@ -1,9 +1,11 @@
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
 import { addWsMessageHandler, WsServerMessage } from "@/atoms/websocket.atoms"
+import { anilistRateLimitEventAtom } from "@/components/shared/anilist-rate-limit-banner"
 import { requestServerLocalSync } from "@/lib/offline"
 import { logger } from "@/lib/utils/logger"
 import { toast } from "@/lib/utils/toast"
 import { useQueryClient } from "@tanstack/react-query"
+import { useSetAtom } from "jotai"
 import React from "react"
 
 const WEBSOCKET_EVENTS = {
@@ -38,6 +40,8 @@ const WEBSOCKET_EVENTS = {
     ServerLoggedOutAnilist: "server-logged-out-anilist",
     // generic invalidation
     InvalidateQueries: "invalidate-queries",
+    // AniList rate-limit backoff (global broadcast; server: internal/api/anilist/client.go)
+    AnilistRateLimit: "anilist-rate-limit",
 } as const
 
 const settingsChangedKeys = [
@@ -116,10 +120,16 @@ async function invalidateQueryKeys(queryClient: ReturnType<typeof useQueryClient
 
 export function useWebsocketEventRouter() {
     const queryClient = useQueryClient()
+    const setAnilistRateLimitEvent = useSetAtom(anilistRateLimitEventAtom)
 
     React.useEffect(() => {
         const handleMessage = async (message: WsServerMessage) => {
             switch (message.type) {
+                case WEBSOCKET_EVENTS.AnilistRateLimit:
+                    if (typeof message.payload === "number" && message.payload > 0) {
+                        setAnilistRateLimitEvent({ waitSeconds: message.payload, at: Date.now() })
+                    }
+                    return
                 case WEBSOCKET_EVENTS.ErrorToast:
                     if (typeof message.payload === "string") {
                         toast.error(message.payload)
@@ -199,5 +209,5 @@ export function useWebsocketEventRouter() {
         }
 
         return addWsMessageHandler(message => void handleMessage(message))
-    }, [queryClient])
+    }, [queryClient, setAnilistRateLimitEvent])
 }

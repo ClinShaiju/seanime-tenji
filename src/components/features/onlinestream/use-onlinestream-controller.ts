@@ -50,6 +50,15 @@ export const selectedQualityAtom = atomWithStorage<string | null>(
     createAtomStorage<string | null>(),
 )
 
+// Per-media dub/sub preference (mirrors seanime-web's __onlinestream_dubbedPreferenceByMediaAtom)
+// — unlike provider/server/quality, dub is a per-title choice, so it's keyed by mediaId instead
+// of a single global value.
+const dubbedPreferenceByMediaAtom = atomWithStorage<Record<string, boolean>>(
+    "sea-onlinestream-dubbed-preference-by-media",
+    {},
+    createAtomStorage<Record<string, boolean>>(),
+)
+
 export type OnlinestreamControllerState = {
     provider: string
     dubbed: boolean
@@ -69,7 +78,16 @@ export function useOnlinestreamController({ entry }: UseOnlinestreamControllerPa
 
     // persisted selection state
     const [provider, setProvider] = useAtom(selectedProviderAtom)
-    const [dubbed, setDubbed] = React.useState(false)
+    const [dubbedPreferenceByMedia, setDubbedPreferenceByMedia] = useAtom(dubbedPreferenceByMediaAtom)
+    const dubbedPreferenceKey = mediaId ? String(mediaId) : null
+    const dubbed = dubbedPreferenceKey ? dubbedPreferenceByMedia[dubbedPreferenceKey] ?? false : false
+    const setDubbed = React.useCallback((value: boolean) => {
+        if (!dubbedPreferenceKey) return
+        setDubbedPreferenceByMedia(prev => {
+            if ((prev[dubbedPreferenceKey] ?? false) === value) return prev
+            return { ...prev, [dubbedPreferenceKey]: value }
+        })
+    }, [dubbedPreferenceKey, setDubbedPreferenceByMedia])
     const [selectedServer, setSelectedServer] = useAtom(selectedServerAtom)
 
     const [playRequestedEpisode, setPlayRequestedEpisode] = React.useState<number | null>(null)

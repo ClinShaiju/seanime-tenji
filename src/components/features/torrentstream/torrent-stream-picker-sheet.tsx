@@ -9,6 +9,7 @@ import {
     Torrentstream_BatchHistoryResponse,
     Torrentstream_FilePreview,
 } from "@/api/generated/types"
+import { useServerStatus } from "@/atoms/server.atoms"
 import { LabeledSwitch } from "@/components/shared/labeled-switch"
 import { NativeSelect, type NativeSelectOption } from "@/components/shared/native-select"
 import { SegmentedControl } from "@/components/shared/segmented-control"
@@ -24,6 +25,58 @@ import * as React from "react"
 import { ActivityIndicator, Pressable, Text, View } from "react-native"
 import { NONE_PROVIDER, TORRENT_RESOLUTIONS, TorrentResolution, TorrentSearchMode, TorrentSheetStage } from "./use-torrent-stream-controller"
 import type { StreamMode } from "./use-torrent-stream-controller"
+
+// Cache markers sources (AIOStreams, MediaFusion, ...) embed in result names. Mirrors web's
+// torrent-common-helpers.tsx getTorrentCacheStatus / backend parseDebridCacheFlag — needed because
+// RealDebrid/AllDebrid have no working instant-availability API, so the name flag is the only
+// cache signal (infoHash-only detection leaves the filter/badges permanently empty on those).
+const CACHE_BOLT_MARKER = "⚡"       // cached / instant
+const CACHE_HOURGLASS_MARKER = "⏳" // uncached
+const CACHE_DOWNARROW_MARKER = "⬇"  // uncached
+
+type TorrentCacheStatus = "cached" | "uncached" | "unknown"
+
+function debridServiceCode(providerId: string | undefined): string {
+    switch (providerId) {
+        case "torbox":
+            return "tb"
+        case "realdebrid":
+            return "rd"
+        case "alldebrid":
+            return "ad"
+        default:
+            return ""
+    }
+}
+
+// getTorrentCacheStatus resolves a result's debrid cache state from its name flag (primary for
+// aggregator results) with an instant-availability fallback (infohash-keyed, for providers whose
+// API still works). "unknown" when neither gives a clear answer.
+function getTorrentCacheStatus(
+    torrent: { name?: string, infoHash?: string } | undefined,
+    debridInstantAvailability: Record<string, unknown>,
+    debridProviderId: string | undefined,
+): TorrentCacheStatus {
+    if (!torrent) return "unknown"
+    if (torrent.infoHash && debridInstantAvailability[torrent.infoHash]) return "cached"
+
+    const name = torrent.name ?? ""
+    if (!name) return "unknown"
+    const lower = name.toLowerCase()
+
+    const code = debridServiceCode(debridProviderId)
+    if (code) {
+        if (lower.includes(`[${code}+]`) || lower.includes(`${code}+`)) return "cached"
+        if (lower.includes(`${code} download`)) return "uncached"
+    }
+
+    const hasBolt = name.includes(CACHE_BOLT_MARKER)
+    const hasUncached = name.includes(CACHE_HOURGLASS_MARKER) || name.includes(CACHE_DOWNARROW_MARKER)
+    if (hasBolt && !hasUncached) return "cached"
+    if (hasUncached && !hasBolt) return "uncached"
+
+    return "unknown"
+}
 
 type TorrentStreamPickerSheetProps = {
     batchHistory?: Torrentstream_BatchHistoryResponse
@@ -432,6 +485,7 @@ type TorrentSelectionStageProps = {
 }
 
 function TorrentSelectionStage(props: TorrentSelectionStageProps) {
+    const serverStatus = useServerStatus()
     const [isFiltersExpanded, setIsFiltersExpanded] = React.useState(false)
     const [cachedFilter, setCachedFilter] = React.useState<"all" | "cached" | "uncached">("all")
     const {
@@ -496,23 +550,37 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
         [providerOptions],
     )
 
-    // Debrid instant-availability: a torrent is "cached" (instant play) when its
-    // infoHash is present in the availability map (mirrors seanime-web).
+    // Debrid cache status: name-flag heuristic (bolt/hourglass/down-arrow markers, rd+/tb+/ad+
+    // prefixes) with an infoHash instant-availability fallback — RealDebrid/AllDebrid have no
+    // working instant-availability API, so on those providers the name flag is the only signal
+    // (mirrors seanime-web's getTorrentCacheStatus).
+    const debridProviderId = serverStatus?.debridSettings?.provider
+    const getCacheStatus = React.useCallback(
+        (torrent: HibikeTorrent_AnimeTorrent): TorrentCacheStatus =>
+            getTorrentCacheStatus(torrent, debridInstantAvailability ?? {}, debridProviderId),
+        [debridInstantAvailability, debridProviderId],
+    )
     const isCached = React.useCallback(
-        (torrent: HibikeTorrent_AnimeTorrent) => !!(torrent.infoHash && debridInstantAvailability?.[torrent.infoHash]),
-        [debridInstantAvailability],
+        (torrent: HibikeTorrent_AnimeTorrent) => getCacheStatus(torrent) === "cached",
+        [getCacheStatus],
     )
     const cachedCount = React.useMemo(
-        () => torrents.reduce((n, t) => n + (isCached(t) ? 1 : 0), 0),
-        [torrents, isCached],
+        () => torrents.reduce((n, t) => n + (getCacheStatus(t) === "cached" ? 1 : 0), 0),
+        [torrents, getCacheStatus],
     )
-    // Only offer the filter when in debrid mode and something is actually cached.
-    const showCacheFilter = streamMode === "debrid" && cachedCount > 0
+    const uncachedCount = React.useMemo(
+        () => torrents.reduce((n, t) => n + (getCacheStatus(t) === "uncached" ? 1 : 0), 0),
+        [torrents, getCacheStatus],
+    )
+    // Only offer the filter when in debrid mode and the name-flag/availability heuristic actually
+    // resolved something (cached or uncached) — on RD/AD this now fires from name flags even
+    // though the instant-availability map is empty.
+    const showCacheFilter = streamMode === "debrid" && (cachedCount > 0 || uncachedCount > 0)
 
     const visibleTorrents = React.useMemo(() => {
         if (!showCacheFilter || cachedFilter === "all") return torrents
-        return torrents.filter(t => (cachedFilter === "cached" ? isCached(t) : !isCached(t)))
-    }, [torrents, showCacheFilter, cachedFilter, isCached])
+        return torrents.filter(t => getCacheStatus(t) === cachedFilter)
+    }, [torrents, showCacheFilter, cachedFilter, getCacheStatus])
 
     const releaseCards = React.useMemo(() => {
         return visibleTorrents.map((torrent, index) => {
@@ -768,7 +836,7 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                     <ChipWrap>
                         <ChoiceChip label={`All (${torrents.length})`} active={cachedFilter === "all"} onPress={() => setCachedFilter("all")} />
                         <ChoiceChip label={`Cached (${cachedCount})`} active={cachedFilter === "cached"} onPress={() => setCachedFilter("cached")} />
-                        <ChoiceChip label="Uncached" active={cachedFilter === "uncached"} onPress={() => setCachedFilter("uncached")} />
+                        <ChoiceChip label={`Uncached (${uncachedCount})`} active={cachedFilter === "uncached"} onPress={() => setCachedFilter("uncached")} />
                     </ChipWrap>
                 )}
 

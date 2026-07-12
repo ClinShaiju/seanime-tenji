@@ -1,16 +1,19 @@
+import { useGetAnilistAnimeDetails } from "@/api/hooks/anilist.hooks"
 import { Anime_Entry, Manga_Entry } from "@/api/generated/types"
 import { useServerStatus } from "@/atoms/server.atoms"
 import { SeaImage } from "@/components/shared/sea-image"
 import { Button } from "@/components/ui/button"
 import { COLORS } from "@/constants/colors"
 import { Ionicons } from "@expo/vector-icons"
+import { addSeconds, formatDistanceToNow } from "date-fns"
 import { LinearGradient } from "expo-linear-gradient"
 import { router } from "expo-router"
 import { capitalize } from "lodash"
 import * as React from "react"
-import { InteractionManager, Pressable, Text, View } from "react-native"
+import { InteractionManager, Linking, Pressable, Text, View } from "react-native"
 import Animated, { SharedValue, useAnimatedStyle, useSharedValue } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { AnimeEntrySilenceToggle } from "./anime-entry-silence-toggle"
 import { EditAnilistEntry } from "./edit-anilist-entry"
 import { MediaEntryAudienceScore, MediaEntryScore } from "./media-entry-score"
 
@@ -251,6 +254,24 @@ function MediaEntryHeaderContentInner({ entry, type, onTitlePress }: MediaEntryH
     const listStatus = entry?.listData?.status
     const listStatusLabel = type === "anime" ? ANIME_LIST_STATUS_LABELS[listStatus ?? ""] : MANGA_LIST_STATUS_LABELS[listStatus ?? ""]
 
+    // M7 — entry header context bucket (anime-only: studio, rankings, trailer,
+    // AniDB/MAL links, next-airing countdown). Mirrors seanime-web's meta-section.tsx.
+    const isAnime = type === "anime"
+    const animeEntry = isAnime ? entry as Anime_Entry : undefined
+    const { data: animeDetails } = useGetAnilistAnimeDetails(isAnime ? entry.mediaId : undefined)
+    const studioName = animeDetails?.studios?.nodes?.[0]?.name
+    const rankings = animeDetails?.rankings
+    const allTimeHighestRated = rankings?.find(r => !!r?.allTime && r?.type === "RATED" && r.rank <= 100)
+    const seasonHighestRated = rankings?.find(r => (!!r?.season || !!r?.year) && r?.type === "RATED" && r.rank <= 5)
+    const seasonMostPopular = rankings?.find(r => (!!r?.season || !!r?.year) && r?.type === "POPULAR" && r.rank <= 10)
+    const trailerId = animeEntry?.media?.trailer?.site === "youtube" ? animeEntry.media.trailer.id : undefined
+    const anidbId = animeEntry?.anidbId
+    const malId = animeEntry?.media?.idMal
+    const siteUrl = entry?.media?.siteUrl
+    const nextAiringEpisode = animeEntry?.media?.nextAiringEpisode
+    const hasContextRow = !!studioName || !!allTimeHighestRated || !!seasonHighestRated || !!seasonMostPopular
+    const hasLinksRow = !!siteUrl || !!anidbId || !!malId || !!trailerId
+
     return (
         <View className="pb-3">
             <MediaEntryCloseButton />
@@ -319,8 +340,41 @@ function MediaEntryHeaderContentInner({ entry, type, onTitlePress }: MediaEntryH
                         </View>
                     )}
 
+                    {hasContextRow && (
+                        <View className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
+                            {!!studioName && (
+                                <Text className="text-xs font-medium text-white/45" numberOfLines={1}>
+                                    {studioName}
+                                </Text>
+                            )}
+                            {!!allTimeHighestRated && (
+                                <View className="flex-row items-center gap-1">
+                                    <Ionicons name="trophy-outline" size={11} color="rgba(250,204,21,0.7)" />
+                                    <Text className="text-xs text-white/50">#{allTimeHighestRated.rank} All-Time</Text>
+                                </View>
+                            )}
+                            {!!seasonHighestRated && (
+                                <View className="flex-row items-center gap-1">
+                                    <Ionicons name="star-outline" size={11} color="rgba(250,204,21,0.7)" />
+                                    <Text className="text-xs text-white/50">
+                                        #{seasonHighestRated.rank} {capitalize(seasonHighestRated.season ?? "")} {seasonHighestRated.year}
+                                    </Text>
+                                </View>
+                            )}
+                            {(!!seasonMostPopular && !seasonHighestRated) && (
+                                <View className="flex-row items-center gap-1">
+                                    <Ionicons name="heart-outline" size={11} color="rgba(244,114,182,0.6)" />
+                                    <Text className="text-xs text-white/50">#{seasonMostPopular.rank} Popular</Text>
+                                </View>
+                            )}
+                        </View>
+                    )}
+
                     <View className="flex flex-row gap-2 items-center flex-wrap">
                         <EditAnilistEntry entry={entry} type={type} />
+                        {isAnime && !!animeEntry?.libraryData && !animeEntry?._isNakamaEntry && (
+                            <AnimeEntrySilenceToggle mediaId={entry.mediaId} />
+                        )}
                         {!!progressLabel && (
                             <View className="rounded-full px-1 py-0">
                                 <Text className="text-lg font-semibold text-white">
@@ -336,6 +390,45 @@ function MediaEntryHeaderContentInner({ entry, type, onTitlePress }: MediaEntryH
                             </View>
                         )}
                     </View>
+
+                    {hasLinksRow && (
+                        <View className="flex-row flex-wrap items-center gap-3">
+                            {!!siteUrl && (
+                                <Pressable onPress={() => Linking.openURL(siteUrl)} className="active:opacity-60">
+                                    <Text className="text-xs font-semibold text-white/45">AniList</Text>
+                                </Pressable>
+                            )}
+                            {!!anidbId && (
+                                <Pressable onPress={() => Linking.openURL(`https://anidb.net/anime/${anidbId}`)} className="active:opacity-60">
+                                    <Text className="text-xs font-semibold text-white/45">AniDB</Text>
+                                </Pressable>
+                            )}
+                            {!!malId && (
+                                <Pressable onPress={() => Linking.openURL(`https://myanimelist.net/anime/${malId}`)} className="active:opacity-60">
+                                    <Text className="text-xs font-semibold text-white/45">MAL</Text>
+                                </Pressable>
+                            )}
+                            {!!trailerId && (
+                                <Pressable
+                                    onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${trailerId}`)}
+                                    className="flex-row items-center gap-1 active:opacity-60"
+                                >
+                                    <Ionicons name="logo-youtube" size={13} color="rgba(255,255,255,0.45)" />
+                                    <Text className="text-xs font-semibold text-white/45">Trailer</Text>
+                                </Pressable>
+                            )}
+                        </View>
+                    )}
+
+                    {!!nextAiringEpisode && (
+                        <View className="flex-row items-center gap-1.5">
+                            <Ionicons name="calendar-outline" size={12} color="rgba(255,255,255,0.4)" />
+                            <Text className="text-xs text-white/45">
+                                <Text className="font-semibold text-white/60">Episode {nextAiringEpisode.episode}</Text>
+                                {" "}{formatDistanceToNow(addSeconds(new Date(), nextAiringEpisode.timeUntilAiring || 0), { addSuffix: true })}
+                            </Text>
+                        </View>
+                    )}
                 </View>
             </View>
         </View>

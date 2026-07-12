@@ -176,6 +176,7 @@ export function PlayerPanelOverlay(props: PlayerPanelOverlayProps) {
                     {panel === "main" && (
                         <MainSettingsContent
                             state={state} prefs={prefs} onNavigate={onNavigate}
+                            updatePrefs={updatePrefs}
                             onStartPiP={props.onStartPiP}
                             onToggleAutoNext={props.onToggleAutoNext}
                             onToggleCenterTapPlayPause={props.onToggleCenterTapPlayPause}
@@ -327,10 +328,11 @@ function PanelSelectableRow({
 ///////////////////////////////////////////////////////////////////////////////
 
 function MainSettingsContent({
-    state, prefs, onNavigate, onStartPiP, onToggleAutoNext,
+    state, prefs, onNavigate, updatePrefs, onStartPiP, onToggleAutoNext,
     onToggleCenterTapPlayPause, onToggleSideSwipeControls, onToggleAutoSkipOpEd, onLockScreen,
 }: {
     state: PlayerStateType; prefs: PlayerPreferences; onNavigate: (p: PlayerPanel) => void
+    updatePrefs: (p: Partial<PlayerPreferences>) => void
     onStartPiP?: () => void; onToggleAutoNext?: () => void
     onToggleCenterTapPlayPause?: () => void; onToggleSideSwipeControls?: () => void
     onToggleAutoSkipOpEd?: () => void
@@ -338,7 +340,9 @@ function MainSettingsContent({
 }) {
     const rows: Array<{
         label: string; value: string; panel: PlayerPanel; icon: React.ReactNode
-        accent?: string; action?: "pip" | "lock" | "toggle-auto-next" | "toggle-center-tap" | "toggle-side-swipe" | "toggle-auto-skip-op-ed"
+        accent?: string
+        action?: "pip" | "lock" | "toggle-auto-next" | "toggle-center-tap" | "toggle-side-swipe" | "toggle-auto-skip-op-ed"
+            | "toggle-chapter-markers" | "toggle-highlight-op-ed"
     }> = [
         {
             label: "Playback Speed",
@@ -393,6 +397,22 @@ function MainSettingsContent({
             action: "toggle-side-swipe",
         },
         {
+            label: "Show Chapter Markers",
+            value: prefs.showChapterMarkers ? "On" : "Off",
+            panel: "main",
+            icon: <List size={15} color="rgba(255,255,255,0.6)" />,
+            accent: prefs.showChapterMarkers ? BRAND_ACCENT : undefined,
+            action: "toggle-chapter-markers",
+        },
+        {
+            label: "Highlight OP / ED Chapters",
+            value: prefs.highlightOpEdChapters ? "On" : "Off",
+            panel: "main",
+            icon: <SkipForward size={15} color="rgba(255,255,255,0.6)" />,
+            accent: prefs.highlightOpEdChapters ? BRAND_ACCENT : undefined,
+            action: "toggle-highlight-op-ed",
+        },
+        {
             label: "Picture-in-Picture",
             value: "",
             panel: "main",
@@ -416,6 +436,8 @@ function MainSettingsContent({
                 onToggleCenterTapPlayPause={onToggleCenterTapPlayPause}
                 onToggleSideSwipeControls={onToggleSideSwipeControls}
                 onToggleAutoSkipOpEd={onToggleAutoSkipOpEd}
+                onToggleChapterMarkers={() => updatePrefs({ showChapterMarkers: !prefs.showChapterMarkers })}
+                onToggleHighlightOpEd={() => updatePrefs({ highlightOpEdChapters: !prefs.highlightOpEdChapters })}
                 onLockScreen={onLockScreen}
             />
         </View>
@@ -1199,16 +1221,20 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function SettingsCard({
     rows, onNavigate, onStartPiP, onToggleAutoNext,
-    onToggleCenterTapPlayPause, onToggleSideSwipeControls, onToggleAutoSkipOpEd, onLockScreen,
+    onToggleCenterTapPlayPause, onToggleSideSwipeControls, onToggleAutoSkipOpEd,
+    onToggleChapterMarkers, onToggleHighlightOpEd, onLockScreen,
 }: {
     rows: Array<{
         label: string; value: string; panel: PlayerPanel; icon: React.ReactNode
-        accent?: string; action?: "pip" | "lock" | "toggle-auto-next" | "toggle-center-tap" | "toggle-side-swipe" | "toggle-auto-skip-op-ed"
+        accent?: string
+        action?: "pip" | "lock" | "toggle-auto-next" | "toggle-center-tap" | "toggle-side-swipe" | "toggle-auto-skip-op-ed"
+            | "toggle-chapter-markers" | "toggle-highlight-op-ed"
     }>
     onNavigate: (p: PlayerPanel) => void
     onStartPiP?: () => void; onToggleAutoNext?: () => void
     onToggleCenterTapPlayPause?: () => void; onToggleSideSwipeControls?: () => void
     onToggleAutoSkipOpEd?: () => void
+    onToggleChapterMarkers?: () => void; onToggleHighlightOpEd?: () => void
     onLockScreen?: () => void
 }) {
     return (
@@ -1223,6 +1249,8 @@ function SettingsCard({
                         else if (row.action === "toggle-center-tap" && onToggleCenterTapPlayPause) onToggleCenterTapPlayPause()
                         else if (row.action === "toggle-side-swipe" && onToggleSideSwipeControls) onToggleSideSwipeControls()
                         else if (row.action === "toggle-auto-skip-op-ed" && onToggleAutoSkipOpEd) onToggleAutoSkipOpEd()
+                        else if (row.action === "toggle-chapter-markers" && onToggleChapterMarkers) onToggleChapterMarkers()
+                        else if (row.action === "toggle-highlight-op-ed" && onToggleHighlightOpEd) onToggleHighlightOpEd()
                         else if (row.action === "lock" && onLockScreen) onLockScreen()
                         else onNavigate(row.panel)
                     }}

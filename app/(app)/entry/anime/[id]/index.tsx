@@ -10,6 +10,7 @@ import { getDownloadedEpisodesForMedia } from "@/lib/downloads/download-store"
 import { useServerLocalAnimeEntry } from "@/lib/offline"
 import { saveAnimeDownloadEntrySnapshot } from "@/lib/offline/download-entry-snapshot-store"
 import { resolveOfflineAnimeEntry } from "@/lib/offline/offline-entry-resolver"
+import { useAnizipArtworkPrefetch } from "@/lib/player/use-anizip-artwork"
 import { router, useLocalSearchParams } from "expo-router"
 import * as React from "react"
 import { Text, TouchableOpacity, View } from "react-native"
@@ -22,6 +23,11 @@ export default function Screen() {
         initialView && VALID_VIEWS.has(initialView as AnimeEntryView)
             ? (initialView as AnimeEntryView)
             : "library"
+
+    // Fetch + prefetch the ani.zip loading-screen artwork (backdrop + clearlogo) so the in-player
+    // Stremio-style loading screen can reveal it instantly at stream start. Mirrors web's
+    // anime-entry-page.tsx placement. No-op / graceful when the entry has no ani.zip art.
+    useAnizipArtworkPrefetch(Number(id) || null)
 
     const { data: entry, isLoading, isFetching, refetch } = useGetAnimeEntry(id)
     const serverLocalEntry = useServerLocalAnimeEntry(Number(id))

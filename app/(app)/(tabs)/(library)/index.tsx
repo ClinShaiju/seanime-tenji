@@ -10,6 +10,7 @@ import { TabFadeView } from "@/components/layout/tab-fade-view"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { LIBRARY_SEARCH_HEADER_BASE_HEIGHT, LibrarySearchHeader } from "@/components/shared/library-search-header"
 import { LuffyError } from "@/components/shared/luffy-error"
+import { MediaGenreSelector } from "@/components/shared/media-genre-selector"
 import { OfflineBanner } from "@/components/shared/offline-banner"
 import { ContinueWatchingItem, useAnimeLibraryCollection } from "@/hooks/use-anime-library-collection"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
@@ -37,6 +38,7 @@ export default function LibraryScreen() {
     const [searchQuery, setSearchQuery] = React.useState("")
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
     const [isPullRefreshing, setIsPullRefreshing] = React.useState(false)
+    const [selectedGenre, setSelectedGenre] = React.useState<string | null>(null)
     const serverLocalAnime = useServerLocalAnimeRecords()
 
     const scrollY = useSharedValue(0)
@@ -67,6 +69,20 @@ export default function LibraryScreen() {
         [libraryCollectionList],
     )
 
+    // M8 — genre chips. libraryGenres was deleted from the collection hook as unused
+    // (2026-07 audit), so we re-derive the distinct genre list from the collection here.
+    const genreOptions = React.useMemo(() => {
+        const genreSet = new Set<string>()
+        for (const entry of allEntries) {
+            entry.media?.genres?.forEach(genre => { if (genre) genreSet.add(genre) })
+        }
+        return [
+            { label: "All", value: null },
+            ...Array.from(genreSet).sort().map(genre => ({ label: genre, value: genre })),
+        ]
+    }, [allEntries])
+    const showGenreSelector = allEntries.length > 2
+
     const searchResults = React.useMemo(() => {
         if (!deferredSearchQuery.trim()) return []
         return filterEntriesByTitle(allEntries, deferredSearchQuery)
@@ -77,9 +93,11 @@ export default function LibraryScreen() {
     const isSearching = searchQuery.trim().length > 0
 
     const shelfSections = React.useMemo<LibraryShelfSection[]>(() => {
-        const buildMedia = (type: string) => (
-            libraryCollectionList.find(item => item.type === type)?.entries?.map(entry => entry.media!).filter(Boolean) ?? []
-        )
+        const buildMedia = (type: string) => {
+            let media = libraryCollectionList.find(item => item.type === type)?.entries?.map(entry => entry.media!).filter(Boolean) ?? []
+            if (selectedGenre) media = media.filter(m => m.genres?.includes(selectedGenre))
+            return media
+        }
 
         return [
             { key: "current", title: "Currently watching", media: buildMedia("CURRENT"), sectionIndex: 0 },
@@ -88,7 +106,7 @@ export default function LibraryScreen() {
             { key: "completed", title: "Completed", media: buildMedia("COMPLETED"), sectionIndex: 3 },
             { key: "dropped", title: "Dropped", media: buildMedia("DROPPED"), sectionIndex: 4 },
         ].filter(section => section.media.length > 0)
-    }, [libraryCollectionList])
+    }, [libraryCollectionList, selectedGenre])
 
     useFocusEffect(
         React.useCallback(() => {
@@ -197,6 +215,13 @@ export default function LibraryScreen() {
                                     )}
                                     {isConnected && continueWatchingList.length > 0 && (
                                         <ContinueWatching items={continueWatchingList} />
+                                    )}
+                                    {isConnected && showGenreSelector && (
+                                        <MediaGenreSelector
+                                            options={genreOptions}
+                                            value={selectedGenre}
+                                            onChange={setSelectedGenre}
+                                        />
                                     )}
                                 </View>
                             }

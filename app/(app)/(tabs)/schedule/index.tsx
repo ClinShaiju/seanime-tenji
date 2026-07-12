@@ -56,6 +56,15 @@ export default function ScheduleScreen() {
             : episodes.filter((episode) => !episode.baseAnime?.isAdult)
     }, [missingData, serverStatus?.settings?.anilist?.enableAdultContent])
 
+    // M9 — silenced episodes are muted from the "Missing" row but still surfaced in a
+    // collapsible section below it, mirroring the web app's missing-episodes.tsx.
+    const silencedEpisodes = React.useMemo(() => {
+        const episodes = missingData?.silencedEpisodes ?? []
+        return serverStatus?.settings?.anilist?.enableAdultContent
+            ? episodes
+            : episodes.filter((episode) => !episode.baseAnime?.isAdult)
+    }, [missingData, serverStatus?.settings?.anilist?.enableAdultContent])
+
     const upcomingEpisodes = upcomingData?.episodes ?? []
 
     // mirrors the web app's useMissingEpisodeSpoilers (spoiler state ignores per-entry progress)
@@ -158,6 +167,12 @@ export default function ScheduleScreen() {
 
                 <MissingEpisodesRow
                     episodes={missingEpisodes}
+                    isLoading={missingLoading}
+                    spoilerActive={missingSpoilerActive}
+                />
+
+                <SilencedEpisodesSection
+                    episodes={silencedEpisodes}
                     isLoading={missingLoading}
                     spoilerActive={missingSpoilerActive}
                 />
@@ -466,6 +481,46 @@ function MissingEpisodesRow({
                 }
             }}
         />
+    )
+}
+
+function SilencedEpisodesSection({
+    episodes,
+    isLoading,
+    spoilerActive,
+}: {
+    episodes: Anime_Episode[]
+    isLoading: boolean
+    spoilerActive: boolean
+}) {
+    const [open, setOpen] = React.useState(false)
+
+    if (isLoading || !episodes.length) return null
+
+    return (
+        <View className="mb-1">
+            <Pressable
+                onPress={() => setOpen(prev => !prev)}
+                className="flex-row items-center gap-2 px-4 py-2 active:opacity-70"
+            >
+                <Ionicons name="notifications-off-outline" size={16} color="rgba(255,255,255,0.6)" />
+                <Text className="text-base font-semibold text-white/80 flex-1">Silenced episodes</Text>
+                <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            {open && (
+                <EpisodeCardList
+                    episodes={episodes}
+                    spoilerActive={spoilerActive}
+                    showAnimeTitle
+                    onEpisodePress={(episode) => {
+                        if (episode.baseAnime?.id) {
+                            router.push(`/(app)/entry/anime/${episode.baseAnime.id}`)
+                        }
+                    }}
+                />
+            )}
+        </View>
     )
 }
 
