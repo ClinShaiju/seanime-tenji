@@ -46,19 +46,7 @@ const mangaReaderPositionsAtom = atomWithStorage<Record<string, MangaReaderPosit
     { getOnInit: true },
 )
 
-export function getDefaultMangaReaderSettings(isCompact: boolean): MangaReaderSettings {
-    if (isCompact) {
-        return {
-            readingMode: MANGA_READING_MODE.LONG_STRIP,
-            readingDirection: MANGA_READING_DIRECTION.RTL,
-            pageGap: true,
-            pageGapAmount: 10,
-            pageGapShadow: true,
-            showProgressBar: true,
-            doublePageOffset: 0,
-        }
-    }
-
+export function getDefaultMangaReaderSettings(): MangaReaderSettings {
     return {
         readingMode: MANGA_READING_MODE.LONG_STRIP,
         readingDirection: MANGA_READING_DIRECTION.RTL,
@@ -70,12 +58,12 @@ export function getDefaultMangaReaderSettings(isCompact: boolean): MangaReaderSe
     }
 }
 
-export function useMangaReaderSettings(mediaId: number | undefined, isCompact: boolean) {
+export function useMangaReaderSettings(mediaId: number | undefined) {
     const [store, setStore] = useAtom(mangaReaderSettingsAtom)
 
     const mediaKey = String(mediaId ?? "")
 
-    const defaults = React.useMemo(() => getDefaultMangaReaderSettings(isCompact), [isCompact])
+    const defaults = React.useMemo(() => getDefaultMangaReaderSettings(), [])
 
     const settings = React.useMemo<MangaReaderSettings>(() => {
         if (!mediaId) return defaults

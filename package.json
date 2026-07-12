@@ -62,6 +62,7 @@
     "expo-navigation-bar": "~55.0.12",
     "expo-router": "~55.0.14",
     "expo-screen-orientation": "~55.0.14",
+    "expo-secure-store": "~55.0.15",
     "expo-sensors": "~55.0.14",
     "expo-splash-screen": "~55.0.20",
     "expo-status-bar": "~55.0.6",

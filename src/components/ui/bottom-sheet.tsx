@@ -1,4 +1,5 @@
 import { NAV_THEME } from "@/lib/constants"
+import { useColorScheme } from "@/lib/useColorScheme"
 import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps, BottomSheetScrollView } from "@gorhom/bottom-sheet"
 import { Portal } from "@rn-primitives/portal"
 import React, { useCallback, useId, useMemo, useRef } from "react"
@@ -37,6 +38,7 @@ export function SeaBottomSheet({
     const id = useId()
     const bottomSheetRef = useRef<BottomSheet>(null)
     const insets = useSafeAreaInsets()
+    const { colorScheme } = useColorScheme()
 
     const snapPoints = useMemo(() => _snapPoints, [_snapPoints])
 
@@ -80,7 +82,7 @@ export function SeaBottomSheet({
                         enableOverDrag={enableOverDrag}
                         backdropComponent={renderBackdrop}
                         handleIndicatorStyle={{ backgroundColor: "#666" }}
-                        backgroundStyle={{ backgroundColor: NAV_THEME.dark.card }}
+                        backgroundStyle={{ backgroundColor: NAV_THEME[colorScheme].card }}
                         onChange={handleSheetChanges}
                         onClose={handleSheetClose}
                         topInset={insets.top}
@@ -104,7 +106,7 @@ export function SeaBottomSheet({
                                     paddingBottom: Math.max(28, insets.bottom + 8),
                                     borderTopWidth: 1,
                                     borderTopColor: "rgba(255,255,255,0.08)",
-                                    backgroundColor: NAV_THEME.dark.card,
+                                    backgroundColor: NAV_THEME[colorScheme].card,
                                 }}
                             >
                                 {footer}

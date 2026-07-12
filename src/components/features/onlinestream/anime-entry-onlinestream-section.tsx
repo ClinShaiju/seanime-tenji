@@ -46,7 +46,7 @@ export function AnimeEntryOnlinestreamSection({ entry }: AnimeEntryOnlinestreamS
 
     const firedPlayRef = React.useRef<string | null>(null)
     React.useEffect(() => {
-        if (!controller.playRequestedEpisode) return
+        if (controller.playRequestedEpisode === null) return
         if (!controller.selectedVideoSource) return
         if (controller.isLoadingSource) return
 

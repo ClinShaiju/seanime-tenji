@@ -116,6 +116,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "./plugins/withExpoOfflineLoggeriOS",
         "expo-updates",
         "expo-image",
+        "expo-secure-store",
     ],
     experiments: {
         typedRoutes: true,

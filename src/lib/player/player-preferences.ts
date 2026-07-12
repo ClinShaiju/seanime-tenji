@@ -34,8 +34,6 @@ export type PlayerPreferences = {
     ignoredSubtitleLabels: string
     /** Seek amount in seconds for double-tap gestures. Default 3. */
     doubleTapSeekSec: number
-    /** Seek amount in seconds for forward/back controls. Default 3. */
-    buttonSeekSec: number
     /** Speed multiplier for long-press fast forward. Default 2.0. */
     longPressFastForwardSpeed: number
     /** Whether the player should automatically advance near the end of an episode. */
@@ -71,7 +69,6 @@ const DEFAULTS: PlayerPreferences = {
     preferredSubtitleLanguages: "eng, en, english",
     ignoredSubtitleLabels: "signs & songs, signs, songs, sign, song",
     doubleTapSeekSec: 3,
-    buttonSeekSec: 3,
     longPressFastForwardSpeed: 2.0,
     autoNextEpisode: true,
     centerTapPlayPause: true,

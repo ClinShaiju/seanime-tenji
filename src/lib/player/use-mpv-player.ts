@@ -106,7 +106,6 @@ export function useMpvPlayer() {
                 url: s.url,
                 title: s.language || undefined,
             })),
-            startPosition: source.resumePositionSec,
             autoplay: prefs.autoPlay,
         }
     }, [source])

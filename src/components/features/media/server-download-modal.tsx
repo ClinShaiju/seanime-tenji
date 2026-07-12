@@ -186,7 +186,6 @@ export function ServerDownloadModal({ entry, open, onOpenChange }: ServerDownloa
             if (episodes.length > 0) {
                 const progress = entry.listData?.progress ?? 0
                 const nextEpIndex = episodes.findIndex(ep => (ep.progressNumber || ep.episodeNumber) > progress)
-                console.log(entry.listData?.progress, nextEpIndex, episodes)
                 if (nextEpIndex !== -1) {
                     setPage(Math.floor(nextEpIndex / MODAL_PAGE_SIZE))
                 } else {

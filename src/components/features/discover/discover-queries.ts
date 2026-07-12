@@ -2,6 +2,7 @@ import { AL_MediaSeason } from "@/api/generated/types"
 import { useAnilistListAnime, useAnilistListMissedSequels, useAnilistListRecentAiringAnime } from "@/api/hooks/anilist.hooks"
 import { useAnilistListManga } from "@/api/hooks/manga.hooks"
 import { subDays } from "date-fns"
+import React from "react"
 
 /**
  * Returns the current AniList season and year based on the current month.
@@ -94,11 +95,25 @@ export function useDiscoverMissedSequels(enabled: boolean = true) {
  * Anime that aired within the last 14 days, mirroring the web app's "Aired Recently" row.
  */
 export function useDiscoverRecentReleases(enabled: boolean = true) {
+    // Round the bounds to the current day so the query key stays stable across
+    // re-renders within the same day instead of minting a new key every second.
+    const dayKey = new Date().toDateString()
+    const { airingAt_lesser, airingAt_greater } = React.useMemo(() => {
+        const endOfDay = new Date()
+        endOfDay.setHours(23, 59, 59, 999)
+        const startOfDay = new Date(endOfDay.getFullYear(), endOfDay.getMonth(), endOfDay.getDate())
+        return {
+            airingAt_lesser: Math.floor(endOfDay.getTime() / 1000),
+            airingAt_greater: Math.floor(subDays(startOfDay, 14).getTime() / 1000),
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dayKey])
+
     return useAnilistListRecentAiringAnime({
         page: 1,
         perPage: 50,
-        airingAt_lesser: Math.floor(new Date().getTime() / 1000),
-        airingAt_greater: Math.floor(subDays(new Date(), 14).getTime() / 1000),
+        airingAt_lesser,
+        airingAt_greater,
     }, enabled)
 }
 

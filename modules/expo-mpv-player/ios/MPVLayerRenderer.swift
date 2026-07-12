@@ -24,6 +24,7 @@ protocol MPVLayerRendererDelegate: AnyObject {
     func renderer(_ renderer: MPVLayerRenderer, didChangeSpeed speed: Double)
     func renderer(_ renderer: MPVLayerRenderer, didChangeSubtitleDelay delay: Double)
     func renderer(_ renderer: MPVLayerRenderer, didChangeAudioDelay delay: Double)
+    func renderer(_ renderer: MPVLayerRenderer, didFailWithError message: String)
 }
 
 /// Core mpv wrapper using vo_avfoundation for video output.
@@ -202,8 +203,11 @@ final class MPVLayerRenderer {
         mpv = nil
 
         if let handle {
+            // Unregister the wakeup callback synchronously before returning so a queued mpv
+            // event can't fire into this renderer after ARC frees it (deinit -> stop()).
+            // terminate_destroy can still run async on `queue`.
+            mpv_set_wakeup_callback(handle, nil, nil)
             queue.async {
-                mpv_set_wakeup_callback(handle, nil, nil)
                 mpv_terminate_destroy(handle)
             }
         }
@@ -440,6 +444,30 @@ final class MPVLayerRenderer {
                 if lower.contains("error") {
                     print("[MPV] ERROR: \(text)")
                 }
+            }
+
+        case MPV_EVENT_END_FILE:
+            // Only surface genuine load/decode failures (dead/expired URL, DNS failure, etc.).
+            // Normal EOF / stop / quit / redirect must not clear loading or emit an error,
+            // otherwise next-episode and in-place source swaps would break.
+            guard let endFile = event.data?.assumingMemoryBound(to: mpv_event_end_file.self).pointee,
+                  endFile.reason == MPV_END_FILE_REASON_ERROR else { break }
+
+            // Clear the loading state first so the JS spinner-debounce timer is cancelled
+            // before the error transition (prevents a resurrected spinner).
+            if isLoading {
+                isLoading = false
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.delegate?.renderer(self, didChangeLoading: false)
+                }
+            }
+
+            let reason = String(cString: mpv_error_string(endFile.error))
+            let message = reason.isEmpty ? "Playback failed" : reason
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.delegate?.renderer(self, didFailWithError: message)
             }
 
         case MPV_EVENT_SHUTDOWN:

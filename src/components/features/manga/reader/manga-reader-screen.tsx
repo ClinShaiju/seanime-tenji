@@ -71,6 +71,12 @@ type SpreadState = {
 }
 
 const VIRTUALIZED_LONG_STRIP_DRAW_DISTANCE_MULTIPLIER = 1.75
+// H3: cap the non-virtualized pinch-zoom long-strip path by page count. Above this,
+// every page renders at once inside a plain ScrollView (no windowing on iOS), so decoded
+// native memory grows linearly and un-evictably with chapter length (~7-8 MB/page) — an
+// OOM/jetsam vector. Long chapters are forced onto the virtualized FlashList path instead;
+// short chapters keep pinch-zoom.
+const LONG_STRIP_ZOOM_MAX_PAGES = 40
 
 export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber }: MangaReaderScreenProps) {
     const router = useRouter()
@@ -81,7 +87,6 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
     const isConnected = useIsServerConnected()
 
     const readerHeight = Math.max(320, screenHeight - insets.top - insets.bottom - 44)
-    const isCompact = screenWidth < 900
 
     const { data: entry } = useGetMangaEntry(mediaId)
     const { data: chapterContainer } = useGetMangaEntryChapters({
@@ -94,7 +99,7 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
     const localPages = useLocalMangaChapterPages(mediaId, provider, chapterId)
     const downloadedChapters = useAllDownloadedMangaChapters(mediaId)
 
-    const { settings, setSetting, resetSettings, defaults } = useMangaReaderSettings(mediaId, isCompact)
+    const { settings, setSetting, resetSettings, defaults } = useMangaReaderSettings(mediaId)
     const { pageIndex: savedPageIndex, setPageIndex: setSavedPageIndex } = useMangaReaderPosition(mediaId, provider, chapterId)
     const isDoublePageOrLongStrip = settings.readingMode === MANGA_READING_MODE.DOUBLE_PAGE
         || settings.readingMode === MANGA_READING_MODE.LONG_STRIP
@@ -210,6 +215,7 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
     }, [pages])
 
     const useFullLongStripZoom = settings.readingMode === MANGA_READING_MODE.LONG_STRIP
+        && pages.length <= LONG_STRIP_ZOOM_MAX_PAGES
         && !longStripLayoutProfile.hasMissingDimensions
         && !longStripLayoutProfile.hasVeryTallPages
     const virtualizedLongStripDrawDistance = React.useMemo(() => Math.round(screenHeight * VIRTUALIZED_LONG_STRIP_DRAW_DISTANCE_MULTIPLIER),
@@ -590,6 +596,10 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
                 tapViewportHeight={screenHeight}
             />
         )
+    // ponytail: this callback (and renderPagedItem below) still lists hudTapExclusion* in
+    // its deps, so a HUD-toggle tap re-creates it and re-renders every mounted memoized cell.
+    // React.memo caps re-renders from *unrelated* state, but killing the on-tap churn needs the
+    // tap-exclusion values plumbed through MangaReaderZoomSurface via a ref instead of props.
     }, [
         chapterKey,
         handleSpreadZoomChange,
@@ -598,6 +608,40 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
         pageGapAmount,
         pages,
         readerHeight,
+        screenHeight,
+        screenWidth,
+        settings,
+        toggleControlsVisible,
+    ])
+
+    const renderPagedItem = React.useCallback(({ item }: ListRenderItemInfo<number[]>) => {
+        const zoomId = `${chapterKey}-${item.join("-")}`
+
+        return (
+            <ReaderPagedItem
+                key={zoomId}
+                spreadIndexes={item}
+                pages={pages}
+                settings={settings}
+                screenWidth={screenWidth}
+                screenHeight={screenHeight}
+                pageGapAmount={pageGapAmount}
+                zoomId={zoomId}
+                flipForRtl={settings.readingDirection === MANGA_READING_DIRECTION.RTL}
+                onTap={toggleControlsVisible}
+                onZoomChange={(zoomed) => handleSpreadZoomChange(zoomId, zoomed)}
+                tapExclusionBottom={hudTapExclusionBottom}
+                tapExclusionTop={hudTapExclusionTop}
+                tapViewportHeight={screenHeight}
+            />
+        )
+    }, [
+        chapterKey,
+        handleSpreadZoomChange,
+        hudTapExclusionBottom,
+        hudTapExclusionTop,
+        pageGapAmount,
+        pages,
         screenHeight,
         screenWidth,
         settings,
@@ -744,24 +788,7 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
                                 style={settings.readingDirection === MANGA_READING_DIRECTION.RTL
                                     ? { transform: [{ scaleX: -1 }] }
                                     : undefined}
-                                renderItem={({ item }) => (
-                                    <ReaderPagedItem
-                                        key={`${chapterKey}-${item.join("-")}`}
-                                        spreadIndexes={item}
-                                        pages={pages}
-                                        settings={settings}
-                                        screenWidth={screenWidth}
-                                        screenHeight={screenHeight}
-                                        pageGapAmount={pageGapAmount}
-                                        zoomId={`${chapterKey}-${item.join("-")}`}
-                                        flipForRtl={settings.readingDirection === MANGA_READING_DIRECTION.RTL}
-                                        onTap={toggleControlsVisible}
-                                        onZoomChange={(zoomed) => handleSpreadZoomChange(`${chapterKey}-${item.join("-")}`, zoomed)}
-                                        tapExclusionBottom={hudTapExclusionBottom}
-                                        tapExclusionTop={hudTapExclusionTop}
-                                        tapViewportHeight={screenHeight}
-                                    />
-                                )}
+                                renderItem={renderPagedItem}
                             />
                         )}
                     </View>
@@ -1033,7 +1060,7 @@ function PageScrubber({
     )
 }
 
-function ReaderLongStripItem({
+const ReaderLongStripItem = React.memo(function ReaderLongStripItem({
     spreadIndexes,
     pages,
     settings,
@@ -1125,9 +1152,9 @@ function ReaderLongStripItem({
             ) : content}
         </View>
     )
-}
+})
 
-function ReaderPagedItem({
+const ReaderPagedItem = React.memo(function ReaderPagedItem({
     spreadIndexes,
     pages,
     settings,
@@ -1216,9 +1243,9 @@ function ReaderPagedItem({
             </MangaReaderZoomSurface>
         </View>
     )
-}
+})
 
-function ReaderImageCard({
+const ReaderImageCard = React.memo(function ReaderImageCard({
     page,
     settings,
     screenWidth,
@@ -1343,7 +1370,7 @@ function ReaderImageCard({
             </View>
         </View>
     )
-}
+})
 
 function ReaderIconButton({
     icon,

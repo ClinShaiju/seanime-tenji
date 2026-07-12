@@ -83,9 +83,13 @@ public class ExpoDownloadManagerModule: Module {
 
   private var session: URLSession?
   private var sessionDelegate: ExpoDownloadSessionDelegate?
+  // All access to the four collections below must go through stateQueue: they are
+  // mutated from both the URLSession delegate queue and the Expo JS-call contexts.
+  private let stateQueue = DispatchQueue(label: "app.seanime.tenji.expo-download-manager.state")
   private var taskInfoByIdentifier: [Int: ExpoDownloadTaskInfo] = [:]
   private var taskIdentifiersByDownloadId: [String: Int] = [:]
   private var lastProgressTimeByIdentifier: [Int: Date] = [:]
+  private var resumedTaskIdentifiers: Set<Int> = []
 
   public func definition() -> ModuleDefinition {
     Name("ExpoDownloadManager")
@@ -108,7 +112,8 @@ public class ExpoDownloadManagerModule: Module {
       headers: [String: String]?,
       title: String?
     ) -> Int in
-      if let existingTaskId = self.taskIdentifiersByDownloadId[id] {
+      let existingTaskId = self.stateQueue.sync { self.taskIdentifiersByDownloadId[id] }
+      if let existingTaskId = existingTaskId {
         return existingTaskId
       }
 
@@ -132,20 +137,16 @@ public class ExpoDownloadManagerModule: Module {
         title: title
       )
 
-      var request = URLRequest(url: url)
-      request.httpMethod = "GET"
-      request.timeoutInterval = 300
-      for (key, value) in info.headers {
-        request.setValue(value, forHTTPHeaderField: key)
+      let task: URLSessionDownloadTask
+      var resumed = false
+      if let resumeData = self.consumeResumeData(forDownloadId: id) {
+        task = session.downloadTask(withResumeData: resumeData)
+        resumed = true
+      } else {
+        task = self.freshDownloadTask(url: url, info: info, session: session)
       }
 
-      let task = session.downloadTask(with: request)
-      task.taskDescription = self.encodeTaskInfo(info)
-
-      let taskId = task.taskIdentifier
-      self.taskInfoByIdentifier[taskId] = info
-      self.taskIdentifiersByDownloadId[id] = taskId
-      task.resume()
+      let taskId = self.startTask(task, info: info, resumed: resumed)
 
       self.sendEvent("onDownloadStarted", [
         "id": info.id,
@@ -159,7 +160,7 @@ public class ExpoDownloadManagerModule: Module {
     Function("cancelDownload") { (taskId: Int) in
       self.session?.getAllTasks { tasks in
         for task in tasks where task.taskIdentifier == taskId {
-          task.cancel()
+          self.cancelProducingResumeData(task)
         }
       }
       self.cleanup(taskId: taskId)
@@ -169,10 +170,11 @@ public class ExpoDownloadManagerModule: Module {
       self.session?.getAllTasks { tasks in
         for task in tasks {
           guard self.info(for: task)?.id == id else { continue }
-          task.cancel()
+          self.cancelProducingResumeData(task)
         }
       }
-      if let taskId = self.taskIdentifiersByDownloadId[id] {
+      let taskId = self.stateQueue.sync { self.taskIdentifiersByDownloadId[id] }
+      if let taskId = taskId {
         self.cleanup(taskId: taskId)
       }
     }
@@ -180,12 +182,15 @@ public class ExpoDownloadManagerModule: Module {
     Function("cancelAllDownloads") {
       self.session?.getAllTasks { tasks in
         for task in tasks {
-          task.cancel()
+          self.cancelProducingResumeData(task)
         }
       }
-      self.taskInfoByIdentifier.removeAll()
-      self.taskIdentifiersByDownloadId.removeAll()
-      self.lastProgressTimeByIdentifier.removeAll()
+      self.stateQueue.sync {
+        self.taskInfoByIdentifier.removeAll()
+        self.taskIdentifiersByDownloadId.removeAll()
+        self.lastProgressTimeByIdentifier.removeAll()
+        self.resumedTaskIdentifiers.removeAll()
+      }
     }
 
     AsyncFunction("getActiveDownloads") { () -> [[String: Any]] in
@@ -218,12 +223,18 @@ public class ExpoDownloadManagerModule: Module {
     guard let info = info(for: downloadTask) else { return }
 
     let now = Date()
-    let previous = lastProgressTimeByIdentifier[taskId] ?? .distantPast
-    if now.timeIntervalSince(previous) < 0.5 && bytesWritten < totalBytes {
+    let shouldEmit = stateQueue.sync { () -> Bool in
+      let previous = lastProgressTimeByIdentifier[taskId] ?? .distantPast
+      if now.timeIntervalSince(previous) < 0.5 && bytesWritten < totalBytes {
+        return false
+      }
+      lastProgressTimeByIdentifier[taskId] = now
+      return true
+    }
+    if !shouldEmit {
       return
     }
 
-    lastProgressTimeByIdentifier[taskId] = now
     let progress = totalBytes > 0 ? Double(bytesWritten) / Double(totalBytes) : 0
 
     sendEvent("onDownloadProgress", [
@@ -282,8 +293,23 @@ public class ExpoDownloadManagerModule: Module {
   func handleError(taskId: Int, task: URLSessionTask, error: Error) {
     let nsError = error as NSError
     let isCancelled = nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    let info = info(for: task)
+    let wasResumed = stateQueue.sync { resumedTaskIdentifiers.contains(taskId) }
 
-    if let info = info(for: task), !isCancelled {
+    if let info = info {
+      if let resumeData = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
+        // Pause (cancel-with-resume) or resumable failure: keep the bytes for next start.
+        persistResumeData(resumeData, forDownloadId: info.id)
+      } else if wasResumed, !isCancelled, let session = session, let url = URL(string: info.url) {
+        // The resume attempt failed (stale/invalid resume data): retry once from scratch.
+        cleanup(taskId: taskId)
+        let retryTask = freshDownloadTask(url: url, info: info, session: session)
+        _ = startTask(retryTask, info: info, resumed: false)
+        return
+      }
+    }
+
+    if let info = info, !isCancelled {
       sendEvent("onDownloadError", [
         "id": info.id,
         "taskId": taskId,
@@ -308,8 +334,9 @@ public class ExpoDownloadManagerModule: Module {
   }
 
   private func info(for task: URLSessionTask) -> ExpoDownloadTaskInfo? {
-    if let info = taskInfoByIdentifier[task.taskIdentifier] {
-      return info
+    let taskId = task.taskIdentifier
+    if let cached = stateQueue.sync(execute: { taskInfoByIdentifier[taskId] }) {
+      return cached
     }
 
     guard let description = task.taskDescription,
@@ -318,8 +345,10 @@ public class ExpoDownloadManagerModule: Module {
       return nil
     }
 
-    taskInfoByIdentifier[task.taskIdentifier] = info
-    taskIdentifiersByDownloadId[info.id] = task.taskIdentifier
+    stateQueue.sync {
+      taskInfoByIdentifier[taskId] = info
+      taskIdentifiersByDownloadId[info.id] = taskId
+    }
     return info
   }
 
@@ -336,10 +365,77 @@ public class ExpoDownloadManagerModule: Module {
   }
 
   private func cleanup(taskId: Int) {
-    if let info = taskInfoByIdentifier.removeValue(forKey: taskId) {
-      taskIdentifiersByDownloadId.removeValue(forKey: info.id)
+    stateQueue.sync {
+      if let info = taskInfoByIdentifier.removeValue(forKey: taskId) {
+        taskIdentifiersByDownloadId.removeValue(forKey: info.id)
+      }
+      lastProgressTimeByIdentifier.removeValue(forKey: taskId)
+      resumedTaskIdentifiers.remove(taskId)
     }
-    lastProgressTimeByIdentifier.removeValue(forKey: taskId)
+  }
+
+  private func freshDownloadTask(url: URL, info: ExpoDownloadTaskInfo, session: URLSession) -> URLSessionDownloadTask {
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.timeoutInterval = 300
+    for (key, value) in info.headers {
+      request.setValue(value, forHTTPHeaderField: key)
+    }
+    return session.downloadTask(with: request)
+  }
+
+  private func startTask(_ task: URLSessionDownloadTask, info: ExpoDownloadTaskInfo, resumed: Bool) -> Int {
+    task.taskDescription = encodeTaskInfo(info)
+    let taskId = task.taskIdentifier
+    stateQueue.sync {
+      taskInfoByIdentifier[taskId] = info
+      taskIdentifiersByDownloadId[info.id] = taskId
+      if resumed {
+        resumedTaskIdentifiers.insert(taskId)
+      }
+    }
+    task.resume()
+    return taskId
+  }
+
+  private func cancelProducingResumeData(_ task: URLSessionTask) {
+    if let downloadTask = task as? URLSessionDownloadTask {
+      // Resume data also arrives in didCompleteWithError's userInfo, where it is persisted.
+      downloadTask.cancel(byProducingResumeData: { _ in })
+    } else {
+      task.cancel()
+    }
+  }
+
+  private func resumeDataURL(forDownloadId id: String) -> URL? {
+    let fileManager = FileManager.default
+    guard let cachesURL = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+      return nil
+    }
+    let directory = cachesURL.appendingPathComponent("expo-download-manager-resume", isDirectory: true)
+    try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    guard let name = id.addingPercentEncoding(withAllowedCharacters: .alphanumerics) else {
+      return nil
+    }
+    return directory.appendingPathComponent(name + ".resumedata")
+  }
+
+  private func persistResumeData(_ data: Data, forDownloadId id: String) {
+    guard let fileURL = resumeDataURL(forDownloadId: id) else { return }
+    try? data.write(to: fileURL, options: .atomic)
+  }
+
+  private func consumeResumeData(forDownloadId id: String) -> Data? {
+    guard let fileURL = resumeDataURL(forDownloadId: id),
+          let data = try? Data(contentsOf: fileURL) else {
+      return nil
+    }
+    // Consume up front so a failed resume falls back to a fresh request next time.
+    try? FileManager.default.removeItem(at: fileURL)
+    guard (try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)) is [String: Any] else {
+      return nil
+    }
+    return data
   }
 
   private func stateName(for state: URLSessionTask.State) -> String {

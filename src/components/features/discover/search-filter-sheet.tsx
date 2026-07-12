@@ -234,7 +234,17 @@ export function SearchFilterSheet({
                     <LabeledSwitch
                         label="Adult Content"
                         checked={draft.isAdult}
-                        onToggle={() => setDraft(d => ({ ...d, isAdult: !d.isAdult }))}
+                        onToggle={() => setDraft(d => {
+                            const isAdult = !d.isAdult
+                            // Prune adult-only tags immediately so they can't ship
+                            // stuck-active and invisible in a non-adult query, and so
+                            // the filter badge count agrees once this is applied.
+                            const adultTagNames = new Set(
+                                SEARCH_MEDIA_TAGS.filter(tag => tag.isAdult).map(tag => tag.name),
+                            )
+                            const tags = isAdult ? d.tags : d.tags.filter(tag => !adultTagNames.has(tag))
+                            return { ...d, isAdult, tags }
+                        })}
                     />
                 )}
 

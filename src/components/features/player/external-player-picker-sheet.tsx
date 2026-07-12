@@ -5,7 +5,7 @@ import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
 import { type ExternalPlayerPreset, getPlatformExternalPlayers } from "@/lib/player/external-players"
 import { getPlayerPreferences, setPlayerPreferences } from "@/lib/player/player-preferences"
 import React from "react"
-import { Text } from "react-native"
+import { Text, TextInput, View } from "react-native"
 
 const CUSTOM_ID = "__custom__"
 
@@ -74,7 +74,7 @@ export function ExternalPlayerPickerSheet({ open, onOpenChange }: ExternalPlayer
         >
             <Text className="text-white/50 text-sm mb-4 leading-5">
                 When set, video URLs are handed off to the chosen external app instead of the in-app player.
-                {/* Use <Text className="text-white/70 font-mono">{"{url}"}</Text> as the placeholder for the stream URL. */}
+                {" "}Use <Text className="text-white/70 font-mono">{"{url}"}</Text> as the placeholder for the stream URL.
             </Text>
 
 
@@ -104,29 +104,29 @@ export function ExternalPlayerPickerSheet({ open, onOpenChange }: ExternalPlayer
             )}
 
 
-            {/* <Surface variant="muted" className="overflow-hidden">
-             <OptionRow
-             label="Custom URL scheme"
-             detail="Enter any scheme manually"
-             active={isCustomActive}
-             onPress={handleSelectCustom}
-             />
-             {isCustomActive && (
-             <View className="px-4 pb-3 pt-1">
-             <TextInput
-             value={customTemplate}
-             onChangeText={handleCustomTemplateChange}
-             placeholder="e.g. myplayer://{url}"
-             placeholderTextColor="rgba(255,255,255,0.25)"
-             autoCapitalize="none"
-             autoCorrect={false}
-             keyboardType="url"
-             className="h-10 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-foreground text-sm font-mono"
-             style={{ color: "#fff" }}
-             />
-             </View>
-             )}
-             </Surface> */}
+            <Surface variant="muted" className="overflow-hidden">
+                <OptionRow
+                    label="Custom URL scheme"
+                    detail="Enter any scheme manually"
+                    active={isCustomActive}
+                    onPress={handleSelectCustom}
+                />
+                {isCustomActive && (
+                    <View className="px-4 pb-3 pt-1">
+                        <TextInput
+                            value={customTemplate}
+                            onChangeText={handleCustomTemplateChange}
+                            placeholder="e.g. myplayer://{url}"
+                            placeholderTextColor="rgba(255,255,255,0.25)"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            keyboardType="url"
+                            className="h-10 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-foreground text-sm font-mono"
+                            style={{ color: "#fff" }}
+                        />
+                    </View>
+                )}
+            </Surface>
         </SeaBottomSheet>
     )
 }

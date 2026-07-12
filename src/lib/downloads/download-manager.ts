@@ -145,7 +145,7 @@ function getAnimeLibraryInfo(entry: Anime_Entry): DownloadedAnimeInfo {
             || entry.media?.title?.romaji
             || entry.media?.title?.userPreferred
             || `Anime #${entry.mediaId}`,
-        coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.large,
+        coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.extraLarge,
         bannerImageUrl: entry.media?.bannerImage,
         totalEpisodes: entry.media?.episodes,
         downloadedCount: 0,

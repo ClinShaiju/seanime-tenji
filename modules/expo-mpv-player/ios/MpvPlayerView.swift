@@ -374,6 +374,10 @@ final class MpvSurfaceExpoView: ExpoView, MPVLayerRendererDelegate, PiPControlle
         onPlaybackStateChange(["audioDelay": delay])
     }
 
+    func renderer(_ renderer: MPVLayerRenderer, didFailWithError message: String) {
+        onError(["error": message])
+    }
+
     // MARK: - PiPControllerDelegate
 
     func pipController(_ controller: PiPController, willStartPictureInPicture: Bool) {

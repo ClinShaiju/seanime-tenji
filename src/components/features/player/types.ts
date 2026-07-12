@@ -6,7 +6,6 @@ export type PlayerPanel =
     | "episodes"
     | "audio-subtitles"
     | "speed"
-    | "seek-buttons"
     | "double-tap-seek"
     | "subtitle-delay"
     | "audio-delay"

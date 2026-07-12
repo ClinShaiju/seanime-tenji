@@ -76,6 +76,101 @@ function SegmentFill({
     )
 }
 
+type SeekBarSegment = {
+    id: number
+    title?: string
+    start: number
+    end: number
+    duration: number
+    startProgress: number
+    endProgress: number
+}
+
+// Memoized so the (potentially long) segment map + thumb don't reconcile on every
+// playback tick — its props are all stable across ticks (the moving fill/thumb are
+// driven by the `seekBarProgress` shared value, not React state).
+const SeekBarTrack = React.memo(function SeekBarTrack({
+    seekBarGesture,
+    onSeekBarLayout,
+    seekBarTrackStyle,
+    seekBarGlowStyle,
+    seekBarThumbStyle,
+    segments,
+    seekBarProgress,
+}: {
+    seekBarGesture: GestureType | ComposedGesture
+    onSeekBarLayout: (e: { nativeEvent: { layout: { width: number } } }) => void
+    seekBarTrackStyle: AnimatedStyle<ViewStyle>
+    seekBarGlowStyle: AnimatedStyle<ViewStyle>
+    seekBarThumbStyle: AnimatedStyle<ViewStyle>
+    segments: SeekBarSegment[]
+    seekBarProgress: SharedValue<number>
+}) {
+    return (
+        <GestureDetector gesture={seekBarGesture}>
+            <View collapsable={false} onLayout={onSeekBarLayout} style={{ height: 36, justifyContent: "center" }}>
+                <Animated.View
+                    pointerEvents="none"
+                    style={[{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        top: "50%",
+                        marginTop: -8,
+                        height: 16,
+                        borderRadius: 999,
+                    }, seekBarGlowStyle]}
+                />
+
+                <Animated.View className="w-full flex-row items-center gap-[3px]" style={seekBarTrackStyle}>
+                    {segments.map((segment, index) => {
+                        const skippable = isSkippableChapter(segment.title)
+                        return (
+                            <View
+                                key={index}
+                                style={{
+                                    flexGrow: segment.duration,
+                                    flexShrink: 1,
+                                    flexBasis: 0,
+                                    height: "100%",
+                                    backgroundColor: skippable ? "rgba(147, 197, 253, 0.45)" : "rgba(255,255,255,0.2)",
+                                    borderRadius: 999,
+                                    overflow: "hidden",
+                                }}
+                            >
+                                <SegmentFill
+                                    seekBarProgress={seekBarProgress}
+                                    startProgress={segment.startProgress}
+                                    endProgress={segment.endProgress}
+                                />
+                            </View>
+                        )
+                    })}
+                </Animated.View>
+
+                <Animated.View
+                    style={[
+                        {
+                            position: "absolute",
+                            top: "50%",
+                            marginTop: -6,
+                            width: 12,
+                            height: 12,
+                            borderRadius: 6,
+                            backgroundColor: "#fff",
+                            shadowColor: "#000",
+                            shadowOpacity: 0.4,
+                            shadowRadius: 3,
+                            shadowOffset: { width: 0, height: 1 },
+                        },
+                        seekBarThumbStyle,
+                    ]}
+                />
+            </View>
+        </GestureDetector>
+    )
+})
+
 interface ControlsOverlayProps {
     visible: boolean
     source: MobilePlaybackSource | null
@@ -104,8 +199,6 @@ interface ControlsOverlayProps {
     chapters: PlayerChapter[]
     seekBarProgress: SharedValue<number>
     onLockScreen: () => void
-    onSeekRelative: (delta: number) => void
-    buttonSeekSec: number
 }
 
 function isSkippableChapter(title?: string) {
@@ -114,17 +207,16 @@ function isSkippableChapter(title?: string) {
     return /opening$|^opening\s|^op$|ending$|^ending\s|^ed$|^credits/i.test(normalized)
 }
 
-export function ControlsOverlay(props: ControlsOverlayProps) {
+function ControlsOverlayComponent(props: ControlsOverlayProps) {
     const {
         visible, source, state, insets, zoomMode, panel,
         seekBarGesture, onSeekBarLayout,
-        seekBarTrackStyle, seekBarFillStyle, seekBarThumbStyle, seekBarGlowStyle,
-        chapterMarkers, progressRatio,
+        seekBarTrackStyle, seekBarThumbStyle, seekBarGlowStyle,
         displayTime, isSeeking, seekingChapter,
         onBack, onTogglePlayPause, scheduleHide, clearHideTimer, setPanel,
         canPlayNext, onManualNextEpisode,
         chapters, seekBarProgress,
-        onLockScreen, onSeekRelative, buttonSeekSec,
+        onLockScreen,
     } = props
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -137,7 +229,7 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
     const topPadL = extendHudPastHorizontalSafeArea ? 12 : insets.left + 12
     const topPadR = extendHudPastHorizontalSafeArea ? 12 : insets.right + 12
 
-    const segments = React.useMemo(() => {
+    const segments = React.useMemo<SeekBarSegment[]>(() => {
         const duration = state.duration || 1
         if (!chapters || chapters.length === 0) {
             return [{
@@ -152,7 +244,7 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
         }
 
         const sorted = [...chapters].sort((a, b) => a.start - b.start)
-        const list = []
+        const list: SeekBarSegment[] = []
 
         for (let i = 0; i < sorted.length; i++) {
             const start = i === 0 ? 0 : sorted[i].start
@@ -257,67 +349,15 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
                 </View>
 
                 <View style={{ paddingLeft: padL, paddingRight: padR }}>
-                    <GestureDetector gesture={seekBarGesture}>
-                        <View collapsable={false} onLayout={onSeekBarLayout} style={{ height: 36, justifyContent: "center" }}>
-                            <Animated.View
-                                pointerEvents="none"
-                                style={[{
-                                    position: "absolute",
-                                    left: 0,
-                                    right: 0,
-                                    top: "50%",
-                                    marginTop: -8,
-                                    height: 16,
-                                    borderRadius: 999,
-                                }, seekBarGlowStyle]}
-                            />
-
-                            <Animated.View className="w-full flex-row items-center gap-[3px]" style={seekBarTrackStyle}>
-                                {segments.map((segment, index) => {
-                                    const skippable = isSkippableChapter(segment.title)
-                                    return (
-                                        <View
-                                            key={index}
-                                            style={{
-                                                flexGrow: segment.duration,
-                                                flexShrink: 1,
-                                                flexBasis: 0,
-                                                height: "100%",
-                                                backgroundColor: skippable ? "rgba(147, 197, 253, 0.45)" : "rgba(255,255,255,0.2)",
-                                                borderRadius: 999,
-                                                overflow: "hidden",
-                                            }}
-                                        >
-                                            <SegmentFill
-                                                seekBarProgress={seekBarProgress}
-                                                startProgress={segment.startProgress}
-                                                endProgress={segment.endProgress}
-                                            />
-                                        </View>
-                                    )
-                                })}
-                            </Animated.View>
-
-                            <Animated.View
-                                style={[
-                                    {
-                                        position: "absolute",
-                                        top: "50%",
-                                        marginTop: -6,
-                                        width: 12,
-                                        height: 12,
-                                        borderRadius: 6,
-                                        backgroundColor: "#fff",
-                                        shadowColor: "#000",
-                                        shadowOpacity: 0.4,
-                                        shadowRadius: 3,
-                                        shadowOffset: { width: 0, height: 1 },
-                                    },
-                                    seekBarThumbStyle,
-                                ]}
-                            />
-                        </View>
-                    </GestureDetector>
+                    <SeekBarTrack
+                        seekBarGesture={seekBarGesture}
+                        onSeekBarLayout={onSeekBarLayout}
+                        seekBarTrackStyle={seekBarTrackStyle}
+                        seekBarGlowStyle={seekBarGlowStyle}
+                        seekBarThumbStyle={seekBarThumbStyle}
+                        segments={segments}
+                        seekBarProgress={seekBarProgress}
+                    />
                 </View>
 
                 <View className="flex-row items-center justify-between gap-3" style={{ paddingLeft: padL, paddingRight: padR }}>
@@ -336,32 +376,6 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
                                 </View>
                             )}
                         </Pressable>
-
-                        {/* <Pressable
-                         onPress={() => {
-                         onSeekRelative(-buttonSeekSec)
-                         scheduleHide()
-                         }} hitSlop={12}
-                         >
-                         {({ pressed }) => (
-                         <View className={cn("h-10 w-10 items-center justify-center rounded-full", pressed ? "bg-white/15" : "bg-white/10")}>
-                         <RotateCcw size={18} color="#fff" />
-                         </View>
-                         )}
-                         </Pressable>
-
-                         <Pressable
-                         onPress={() => {
-                         onSeekRelative(buttonSeekSec)
-                         scheduleHide()
-                         }} hitSlop={12}
-                         >
-                         {({ pressed }) => (
-                         <View className={cn("h-10 w-10 items-center justify-center rounded-full", pressed ? "bg-white/15" : "bg-white/10")}>
-                         <RotateCw size={18} color="#fff" />
-                         </View>
-                         )}
-                         </Pressable> */}
 
                         <Text className="text-sm font-semibold text-white" style={{ fontVariant: ["tabular-nums"] }}>
                             {formatTime(displayTime)}
@@ -387,6 +401,8 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
         </Animated.View>
     )
 }
+
+export const ControlsOverlay = React.memo(ControlsOverlayComponent)
 
 
 export function LockModeOverlay({

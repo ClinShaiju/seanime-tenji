@@ -1,8 +1,6 @@
-import { Text } from "@/components/ui/text"
-import { cn } from "@/lib/utils"
+import { PillSelector } from "@/components/shared/pill-selector"
 import { Ionicons } from "@expo/vector-icons"
 import React from "react"
-import { Pressable, View } from "react-native"
 
 ///////////////////////////////////////////////////////////////////////////////
 // ChipOption
@@ -34,38 +32,25 @@ export function ChipSelector<T extends string = string>({
     className,
 }: ChipSelectorProps<T>) {
     return (
-        <View className={cn("flex-row flex-wrap gap-2", className)}>
-            {options.map(option => {
+        <PillSelector
+            variant="solid"
+            className={className}
+            options={options.map(option => {
                 const selected = value === option.value
-                return (
-                    <Pressable
-                        key={option.value}
-                        onPress={() => onSelect(option.value)}
-                        className={cn(
-                            "h-10 flex-row items-center gap-1.5 rounded-full border px-4",
-                            selected
-                                ? "border-primary bg-primary active:opacity-80"
-                                : "border-white/10 bg-white/[0.04] active:bg-white/10",
-                        )}
-                    >
-                        {option.icon && (
-                            <Ionicons
-                                name={option.icon}
-                                size={13}
-                                color={selected ? "#09090b" : "rgba(255,255,255,0.6)"}
-                            />
-                        )}
-                        <Text
-                            className={cn(
-                                "text-sm font-medium",
-                                selected ? "text-primary-foreground" : "text-foreground/80",
-                            )}
-                        >
-                            {option.label}
-                        </Text>
-                    </Pressable>
-                )
+                return {
+                    value: option.value,
+                    label: option.label,
+                    icon: option.icon ? (
+                        <Ionicons
+                            name={option.icon}
+                            size={13}
+                            color={selected ? "#09090b" : "rgba(255,255,255,0.6)"}
+                        />
+                    ) : undefined,
+                }
             })}
-        </View>
+            isSelected={opt => opt === value}
+            onPress={onSelect}
+        />
     )
 }

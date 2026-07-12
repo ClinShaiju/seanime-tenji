@@ -1,3 +1,4 @@
+import { logger } from "@/lib/utils/logger"
 import { atom } from "jotai"
 import React from "react"
 
@@ -22,8 +23,14 @@ export function addWsMessageHandler(handler: (message: WsServerMessage) => void)
 }
 
 export function dispatchWsMessage(message: WsServerMessage) {
+    // Isolate subscribers: one handler throwing must not drop the frame for the others
+    // (iOS has no console, so surface it via the logger instead of swallowing).
     for (const handler of [...wsMessageHandlers]) {
-        handler(message)
+        try {
+            handler(message)
+        } catch (e) {
+            logger("websocket.atoms").error("ws message handler threw", e)
+        }
     }
 }
 

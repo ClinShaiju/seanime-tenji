@@ -222,10 +222,10 @@ export function useUpdateAnimeEntryRepeat(id: Nullish<string | number>) {
         method: API_ENDPOINTS.ANIME_ENTRIES.UpdateAnimeEntryRepeat.methods[0],
         mutationKey: [API_ENDPOINTS.ANIME_ENTRIES.UpdateAnimeEntryRepeat.key, id],
         onSuccess: async () => {
-            // if (id) {
-            //     await queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.ANIME_ENTRIES.GetAnimeEntry.key, String(id)] })
-            // }
-            // toast.success("Updated successfully")
+            if (id) {
+                await queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.ANIME_ENTRIES.GetAnimeEntry.key, String(id)] })
+            }
+            toast.success("Updated successfully")
         },
     })
 }

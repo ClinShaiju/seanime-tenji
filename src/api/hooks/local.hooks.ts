@@ -30,7 +30,7 @@ export function useLocalAddTrackedMedia() {
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetTrackedMediaItems.key] })
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetSyncQueueState.key] })
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetIsMediaTracked.key] })
-            await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetLocalStorageSize] })
+            await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetLocalStorageSize.key] })
             toast.success("Added media for offline syncing")
         },
     })
@@ -46,7 +46,7 @@ export function useLocalRemoveTrackedMedia() {
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetTrackedMediaItems.key] })
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetSyncQueueState.key] })
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetIsMediaTracked.key] })
-            await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetLocalStorageSize] })
+            await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetLocalStorageSize.key] })
             toast.success("Removed offline data")
         },
     })
@@ -97,8 +97,8 @@ export function useLocalSyncAnilistData() {
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.ANIME_COLLECTION.GetLibraryCollection.key] })
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.ANIME_ENTRIES.GetAnimeEntry.key] })
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.MANGA.GetMangaEntry.key] })
-            await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.ANIME_ENTRIES.GetMissingEpisodes] })
-            await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetLocalStorageSize] })
+            await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.ANIME_ENTRIES.GetMissingEpisodes.key] })
+            await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.LOCAL.LocalGetLocalStorageSize.key] })
             toast.success("Updated Anilist data")
         },
     })

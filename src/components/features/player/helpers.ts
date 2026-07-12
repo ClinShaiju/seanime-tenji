@@ -78,7 +78,6 @@ export function getBackPanel(panel: PlayerPanel): PlayerPanel | null {
     switch (panel) {
         case "audio-subtitles":
         case "speed":
-        case "seek-buttons":
         case "double-tap-seek":
             return "main"
         case "audio-tracks":

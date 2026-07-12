@@ -664,7 +664,7 @@ export function enqueueMangaChapterDownloads(
         || entry.media?.title?.romaji
         || entry.media?.title?.userPreferred
         || `Manga #${mediaId}`
-    const coverImageUrl = entry.media?.coverImage?.large ?? entry.media?.coverImage?.large
+    const coverImageUrl = entry.media?.coverImage?.large ?? entry.media?.coverImage?.extraLarge
 
     batchMangaDownloadStoreWrites(() => {
         saveMangaInfo({
@@ -886,6 +886,13 @@ export function isMangaChapterActive(mediaId: number, provider: string, chapterI
     return isQueuedMangaChapterDownload(mediaId, provider, chapterId) || isCurrentMangaChapterDownload(mediaId, provider, chapterId)
 }
 
+export function getMediaMangaDownloadDiskUsage(mediaId: number): number {
+    const dir = getMediaDir(mediaId)
+    if (!dir.exists) return 0
+    return dir.size ?? 0
+}
+
+/** Whole-library manga download size — for library-wide UI only (see per-media variant above). */
 export function getMangaDownloadDiskUsage(): number {
     const dir = getMangaDownloadsDir()
     if (!dir.exists) return 0

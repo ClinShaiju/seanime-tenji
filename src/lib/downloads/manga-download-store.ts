@@ -445,7 +445,3 @@ function updateMangaInfoDownloadCount(mediaId: number, provider: string): void {
         .filter(ch => ch.status === "completed").length
     store.set(mangaInfoKey(mediaId), JSON.stringify(info))
 }
-
-export function getTotalMangaDownloadSize(): number {
-    return 0
-}

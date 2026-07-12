@@ -1,5 +1,5 @@
-import { Anime_Episode } from "@/api/generated/types"
-import { useServerStatus } from "@/atoms/server.atoms"
+import { Anime_Episode, Status } from "@/api/generated/types"
+import { useEpisodeSpoilerThemeSettings } from "@/atoms/server.atoms"
 import { MediaEpisodeInfoSheet } from "@/components/features/media/media-episode-info-sheet"
 import { SeaImage } from "@/components/shared/sea-image"
 import { getEpisodeSpoilerState } from "@/lib/anime-spoilers"
@@ -118,9 +118,9 @@ function EpisodeListItemInner({
     thumbnailOverlay,
     blurAdultContent,
 }: EpisodeListItemProps) {
-    const serverStatus = useServerStatus()
+    const spoilerThemeSettings = useEpisodeSpoilerThemeSettings()
     const downloadStatus = useEpisodeDownloadStatus(mediaId, episode)
-    const spoiler = getEpisodeSpoilerState(serverStatus, {
+    const spoiler = getEpisodeSpoilerState({ themeSettings: spoilerThemeSettings } as unknown as Status, {
         episodeNumber: episode.progressNumber || episode.episodeNumber,
         watchedProgress,
     })
@@ -248,16 +248,14 @@ function EpisodeListItemInner({
             {showDetailsButton ? (
                 <View className="ml-2 py-1">
                     <EpisodeDetailsButton episode={episode} imageOverride={imageOverride} watchedProgress={watchedProgress} />
-
-                    {action ? (
-                        <View className="">
-                            {action}
-                        </View>
-                    ) : null}
                 </View>
             ) : null}
 
-
+            {action ? (
+                <View className="ml-2 py-1">
+                    {action}
+                </View>
+            ) : null}
         </>
     )
 

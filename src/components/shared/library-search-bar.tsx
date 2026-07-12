@@ -54,7 +54,7 @@ export function LibrarySearchBar({
                     "flex-row items-center h-11 rounded-2xl bg-white/[0.04] px-3 gap-2",
                     className,
                 )}
-            // style={animatedContainerStyle}
+                style={animatedContainerStyle}
             >
                 <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.35)" />
                 <TextInput

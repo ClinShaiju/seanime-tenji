@@ -187,7 +187,7 @@ export function useSaveAnimeEntryOffline() {
             anilistId: entry.mediaId,
             type: "anime",
             title,
-            coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.large,
+            coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.extraLarge,
             payload: JSON.stringify(entry),
             savedAt: Date.now(),
         })
@@ -211,7 +211,7 @@ export function useSaveMangaEntryOffline() {
             anilistId: entry.mediaId,
             type: "manga",
             title,
-            coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.large,
+            coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.extraLarge,
             payload: JSON.stringify(entry),
             savedAt: Date.now(),
         })
@@ -374,7 +374,7 @@ export function useRefreshOfflineEntryPayload() {
             anilistId,
             JSON.stringify(freshEntry),
             title ?? undefined,
-            freshEntry.media?.coverImage?.large ?? freshEntry.media?.coverImage?.large ?? undefined,
+            freshEntry.media?.coverImage?.large ?? freshEntry.media?.coverImage?.extraLarge ?? undefined,
         )
     }, [])
 }

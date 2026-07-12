@@ -5,7 +5,6 @@ export type {
     PlayerState,
     PlayerTrack,
     PlayerStatus,
-    PlayerCommand,
 } from "./types"
 
 export {

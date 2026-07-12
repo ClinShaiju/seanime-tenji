@@ -104,11 +104,12 @@ export function MediaEntryQuickInfoSheet<T extends "anime" | "manga">({
     onOpenChange,
     preferFetchedMedia,
 }: MediaEntryQuickInfoSheetProps<T>) {
+    const serverStatus = useServerStatus()
+    const { data: animeEntry, isLoading: animeEntryLoading } = useGetAnimeEntry(type === "anime" && open && media ? media.id : undefined)
+    const { data: mangaEntry, isLoading: mangaEntryLoading } = useGetMangaEntry(type === "manga" && open && media ? media.id : undefined)
+
     if (!media) return null
 
-    const serverStatus = useServerStatus()
-    const { data: animeEntry, isLoading: animeEntryLoading } = useGetAnimeEntry(type === "anime" && open ? media.id : undefined)
-    const { data: mangaEntry, isLoading: mangaEntryLoading } = useGetMangaEntry(type === "manga" && open ? media.id : undefined)
     const entry = type === "anime" ? animeEntry : mangaEntry
     const entryLoading = (type === "anime" ? animeEntryLoading : mangaEntryLoading) && !entry
     const displayMedia = (preferFetchedMedia && entry?.media ? entry.media : media) as T extends "anime" ? AL_BaseAnime : AL_BaseManga

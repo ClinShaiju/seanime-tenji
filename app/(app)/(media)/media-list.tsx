@@ -28,7 +28,25 @@ export default function MediaList() {
 
     const [mediaListPageContent] = useAtom(__media_listPageContentAtom)
 
-    if (!mediaListPageContent) return null
+    if (!mediaListPageContent) {
+        return (
+            <SafeView>
+                <View className="flex-1 items-center justify-center gap-4 px-8">
+                    <Text className="text-base text-muted-foreground text-center">
+                        Nothing to show here.
+                    </Text>
+                    {canGoBack && (
+                        <Button
+                            variant="secondary"
+                            onPress={() => router.back()}
+                        >
+                            <Text className="text-secondary-foreground text-sm font-medium">Go back</Text>
+                        </Button>
+                    )}
+                </View>
+            </SafeView>
+        )
+    }
 
     const keyExtractor = React.useCallback((item: AL_BaseAnime | AL_BaseManga, index: number) => `${item.id}-${index}`, [])
 

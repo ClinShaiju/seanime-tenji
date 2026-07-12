@@ -1,6 +1,6 @@
-import { Anime_Episode, Continuity_WatchHistory } from "@/api/generated/types"
+import { Anime_Episode, Continuity_WatchHistory, Status } from "@/api/generated/types"
 import { getEpisodePercentageComplete } from "@/api/hooks/continuity.hooks"
-import { useServerStatus } from "@/atoms/server.atoms"
+import { useEpisodeSpoilerThemeSettings } from "@/atoms/server.atoms"
 import { EpisodeCard } from "@/components/features/anime/episode-card"
 import { PrewarmBadge } from "@/components/features/anime/prewarm-badge"
 import { getEpisodeSpoilerState } from "@/lib/anime-spoilers"
@@ -56,14 +56,14 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
         loadingEpisodeNumber,
         showAnimeTitle,
     } = props
-    const serverStatus = useServerStatus()
+    const spoilerThemeSettings = useEpisodeSpoilerThemeSettings()
 
     const keyExtractor = React.useCallback((item: Anime_Episode, index: number) => {
         return item.localFile?.path || `${item.baseAnime?.id ?? "episode"}-${item.episodeNumber}-${index}`
     }, [])
 
     const renderEpisodeCard = React.useCallback(({ item }: ListRenderItemInfo<Anime_Episode>) => {
-        const spoiler = getEpisodeSpoilerState(serverStatus, {
+        const spoiler = getEpisodeSpoilerState({ themeSettings: spoilerThemeSettings } as unknown as Status, {
             episodeNumber: item.progressNumber || item.episodeNumber,
             watchedProgress,
             spoilerActive,
@@ -100,7 +100,7 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
                 animeTitle={animeTitle}
             />
         )
-    }, [disabled, loadingEpisodeNumber, mediaId, onEpisodePress, serverStatus, spoilerActive, watchedProgress, watchHistory, showAnimeTitle])
+    }, [disabled, loadingEpisodeNumber, mediaId, onEpisodePress, spoilerThemeSettings, spoilerActive, watchedProgress, watchHistory, showAnimeTitle])
 
     const getItemLayout = React.useCallback((_: ArrayLike<Anime_Episode> | null | undefined, index: number) => ({
         length: ITEM_FULL_WIDTH,

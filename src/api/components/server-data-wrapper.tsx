@@ -20,8 +20,11 @@ export function ServerUrlWrapper({ children }: { children: React.ReactNode }) {
     React.useEffect(() => {
         async function checkServerUrl() {
             if (serverUrl) {
-                if (pathname === "/set-server-url") return
-                router.replace("/(app)/(tabs)/(library)")
+                // Only leave the out-of-app setup screen; never clobber a valid in-app route
+                // (e.g. a cold-launch deep link) just because a server URL is configured.
+                if (pathname === "/set-server-url") {
+                    router.replace("/(app)/(tabs)/(library)")
+                }
             } else {
                 if (pathname === "/set-server-url") return
                 router.replace("/(out)/set-server-url")

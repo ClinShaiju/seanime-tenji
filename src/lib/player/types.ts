@@ -95,9 +95,6 @@ export type MobilePlaybackSource = {
 
     continuityKind: Continuity_Kind
 
-    /** Seconds to resume from. Populated from continuity before playback starts. */
-    resumePositionSec?: number
-
     /** External subtitle tracks for online streaming. */
     externalSubtitles?: Onlinestream_Subtitle[]
 
@@ -146,14 +143,3 @@ export type PlayerState = {
     audioDelay: number
     isPiPActive: boolean
 }
-
-/** Commands the React Native layer can send to the native player. */
-export type PlayerCommand =
-    | { type: "load"; source: MobilePlaybackSource }
-    | { type: "play" }
-    | { type: "pause" }
-    | { type: "stop" }
-    | { type: "seek"; positionSec: number }
-    | { type: "setAudioTrack"; trackId: number }
-    | { type: "setSubtitleTrack"; trackId: number }
-    | { type: "destroy" }

@@ -77,7 +77,7 @@ export function saveAnimeDownloadEntrySnapshot(entry: Anime_Entry): void {
         mediaId: entry.mediaId,
         type: "anime",
         title: getAnimeSnapshotTitle(entry),
-        coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.large,
+        coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.extraLarge,
         payload: JSON.stringify(entry),
         updatedAt: Date.now(),
     })
@@ -88,7 +88,7 @@ export function saveMangaDownloadEntrySnapshot(entry: Manga_Entry): void {
         mediaId: entry.mediaId,
         type: "manga",
         title: getMangaSnapshotTitle(entry),
-        coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.large,
+        coverImageUrl: entry.media?.coverImage?.large ?? entry.media?.coverImage?.extraLarge,
         payload: JSON.stringify(entry),
         updatedAt: Date.now(),
     })

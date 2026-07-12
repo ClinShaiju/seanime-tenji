@@ -21,8 +21,6 @@ export const MAIN_LIBRARY_DEFAULT_PARAMS: CollectionParams = {
 
 export const __mainLibrary_paramsAtom = atomWithImmer<CollectionParams>(MAIN_LIBRARY_DEFAULT_PARAMS)
 
-export const __mainLibrary_paramsInputAtom = atomWithImmer<CollectionParams>(MAIN_LIBRARY_DEFAULT_PARAMS)
-
 export function useAnimeLibraryCollection() {
     const serverStatus = useServerStatus()
     const { data, isLoading, isFetching, refetch } = useGetLibraryCollection()
@@ -33,28 +31,16 @@ export function useAnimeLibraryCollection() {
         ...DEFAULT_COLLECTION_PARAMS,
         sorting: animeLibraryDefaultSorting,
     }), [animeLibraryDefaultSorting])
-    const libraryGenres = React.useMemo(() => {
-        const allGenres = data?.lists?.flatMap(l => {
-            return l.entries?.flatMap(e => e.media?.genres) ?? []
-        })
-        return [...new Set(allGenres)].filter(Boolean)?.sort((a, b) => a.localeCompare(b))
-    }, [data])
-
-    const [params, setParams] = useAtom(__mainLibrary_paramsAtom)
-
-    React.useEffect(() => {
-        if (!!data) {
-            setParams(mainLibraryDefaultParams)
-        }
-    }, [data, mainLibraryDefaultParams, setParams])
 
     const sortedCollection = React.useMemo(() => {
         if (!data || !data.lists) return []
 
-        if (data.stream) {
-            const currentList = data.lists.find(n => n.type === "CURRENT")
-            if (currentList) {
-                const entries = [...(currentList.entries ?? [])]
+        // Merge stream-only entries into the CURRENT list without mutating the
+        // shared react-query cache object (data.lists / its list objects).
+        const listsWithStream = data.lists.map(obj => {
+            if (!obj) return obj
+            if (data.stream && obj.type === "CURRENT") {
+                const entries = [...(obj.entries ?? [])]
                 for (const anime of (data.stream.anime ?? [])) {
                     if (!entries.some(e => e.mediaId === anime.id)) {
                         entries.push({
@@ -64,11 +50,12 @@ export function useAnimeLibraryCollection() {
                         })
                     }
                 }
-                currentList.entries = entries
+                return { ...obj, entries }
             }
-        }
+            return obj
+        })
 
-        const lists = data.lists.map(obj => {
+        const lists = listsWithStream.map(obj => {
             if (!obj) return obj
             const entries = filterAnimeCollectionEntries(
                 obj.entries,
@@ -98,35 +85,6 @@ export function useAnimeLibraryCollection() {
     // seasons" is on (no-op otherwise). The library shelves + in-library search both
     // derive from this, so both collapse together.
     const libraryCollectionList = useGroupedCollectionList(sortedCollection as Anime_LibraryCollectionList[])
-
-    const filteredCollection = React.useMemo(() => {
-        if (!data || !data.lists) return []
-
-        const lists = data.lists.map(obj => {
-            if (!obj) return obj
-            const entries = filterAnimeCollectionEntries(
-                obj.entries,
-                params,
-                serverStatus?.settings?.anilist?.enableAdultContent,
-                data.continueWatchingList,
-                watchHistory,
-            )
-
-            return {
-                type: obj.type,
-                status: obj.status,
-                entries,
-            }
-        })
-
-        return [
-            lists.find(n => n.type === "CURRENT"),
-            lists.find(n => n.type === "PAUSED"),
-            lists.find(n => n.type === "PLANNING"),
-            lists.find(n => n.type === "COMPLETED"),
-            lists.find(n => n.type === "DROPPED"),
-        ].filter(Boolean)
-    }, [data, params, serverStatus?.settings?.anilist?.enableAdultContent, watchHistory])
 
     const continueWatchingList = React.useMemo(() => {
         const fallbackStreamView: ContinueWatchingItem["sourceView"] =
@@ -204,12 +162,10 @@ export function useAnimeLibraryCollection() {
     ])
 
     return {
-        libraryGenres,
         isLoading,
         isFetching,
         refetch,
         libraryCollectionList,
-        filteredLibraryCollectionList: filteredCollection,
         continueWatchingList,
         hasNonLocalEpisodes: continueWatchingList.some(item => !item.episode.localFile),
         unmatchedLocalFiles: data?.unmatchedLocalFiles ?? [],

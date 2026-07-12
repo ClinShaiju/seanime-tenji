@@ -158,7 +158,12 @@ function PlayerScreenInner() {
         }
     }, [windowWidth, windowHeight, state.isPiPActive])
 
-    useContinuitySync(player.source, state)
+    const { flushContinuity } = useContinuitySync(player.source, state)
+    // flushContinuity closes over the live currentTime, so its identity changes every tick.
+    // Keep a ref so the in-place source swap (local-file next-episode) can flush the OUTGOING
+    // episode's position without pulling ticking state into any dependency array.
+    const flushContinuityRef = React.useRef(flushContinuity)
+    flushContinuityRef.current = flushContinuity
 
     // Re-establish a debrid stream if the server restarts (deploy/crash) mid-playback: on WS
     // reconnect after a drop while a debrid stream was active, re-issue the last start and resume
@@ -191,11 +196,9 @@ function PlayerScreenInner() {
         if (resumeAppliedForRef.current === source.id) return
         if (state.status !== "ready" || state.paused) return
 
-        let resumeTarget = source.resumePositionSec != null && source.resumePositionSec > 0
-            ? source.resumePositionSec
-            : null
+        let resumeTarget: number | null = null
 
-        if (resumeTarget === null && watchHistory) {
+        if (watchHistory) {
             const item = watchHistory[source.mediaId]
             if (item && item.episodeNumber === source.episodeNumber) {
                 const ratio = item.duration > 0 ? item.currentTime / item.duration : 0
@@ -323,12 +326,12 @@ function PlayerScreenInner() {
     const [seekingDisplay, setSeekingDisplay] = React.useState<number | null>(null)
     const seekingRef = React.useRef<number | null>(null)
 
-    const onSeekBarLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
+    const onSeekBarLayout = React.useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
         const width = Math.max(1, e.nativeEvent.layout.width)
         barWidthRef.current = width
         setSeekBarWidth(current => current === width ? current : width)
         seekBarWidthValue.set(width)
-    }
+    }, [seekBarWidthValue])
 
     const scheduleSeekingDisplayUpdate = React.useCallback((value: number | null) => {
         pendingSeekingDisplayRef.current = value
@@ -625,8 +628,18 @@ function PlayerScreenInner() {
             setOptedOutStreamRoom(currentWatchRoom.id)
         }
         player.stop()
-        if (canGoBack()) back()
-    }, [back, canGoBack, player, roomSync, currentWatchRoom, setOptedOutStreamRoom])
+        if (canGoBack()) {
+            back()
+            return
+        }
+        // No back stack (this route disables the swipe-back gesture): fall back to the
+        // entry screen instead of leaving the user stranded (mirror of closePlayerToEntry).
+        if (!source?.entryView) return
+        replace({
+            pathname: "/(app)/entry/anime/[id]",
+            params: { id: String(source.mediaId), initialView: source.entryView },
+        })
+    }, [back, canGoBack, replace, player, roomSync, currentWatchRoom, setOptedOutStreamRoom, source])
 
     // Remote teardown: the controller stopped the episode or the host closed the room. Tear
     // down without re-emitting (this isn't our own stop).
@@ -701,12 +714,15 @@ function PlayerScreenInner() {
                 }
                 return
             }
+            // The source atom swaps in place with no unmount, so flush the outgoing episode's
+            // position now — otherwise it's only as fresh as the last 5s continuity tick.
+            flushContinuityRef.current()
             setSource(newSource)
             controls.scheduleHide()
             return
         }
 
-        if (!episodeNumber) return
+        if (episodeNumber === null) return
 
         if (source.nextEpisodeAction === "torrentstream-auto-select") {
             setPlaybackIntent(createAnimeEntryPlaybackIntent({
@@ -1054,8 +1070,6 @@ function PlayerScreenInner() {
                         chapters={chapters}
                         seekBarProgress={seekBarProgress}
                         onLockScreen={controls.lockScreen}
-                        onSeekRelative={player.seekRelative}
-                        buttonSeekSec={prefs.buttonSeekSec}
                     />
                 )}
 

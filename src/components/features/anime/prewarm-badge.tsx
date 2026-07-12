@@ -1,5 +1,5 @@
 import { useDebridPrewarmStatus } from "@/api/hooks/debrid.hooks"
-import { useServerStatus } from "@/atoms/server.atoms"
+import { useDebridPrewarmSettings } from "@/atoms/server.atoms"
 import { cn } from "@/lib/utils"
 import { Flame } from "lucide-react-native"
 import * as React from "react"
@@ -22,8 +22,8 @@ type PrewarmBadgeProps = {
  * Pass `className` (e.g. an absolute position) for placement.
  */
 export function PrewarmBadge({ mediaId, episodeNumber, className }: PrewarmBadgeProps) {
-    const serverStatus = useServerStatus()
-    const enabled = !!serverStatus?.debridSettings?.enabled && !!serverStatus?.debridSettings?.preloadNextStream
+    const { enabled: debridEnabled, preloadNextStream } = useDebridPrewarmSettings()
+    const enabled = debridEnabled && preloadNextStream
 
     const { data } = useDebridPrewarmStatus(enabled)
 

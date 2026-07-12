@@ -16,10 +16,22 @@ const defaultDownloadSettings: DownloadSettings = {
     parallelDownloading: true,
 }
 
+const baseDownloadSettingsStorage = createAtomStorage<DownloadSettings>()
+
+// Merge stored JSON over the defaults on read (mirrors getDownloadSettings()) so
+// fields added in future releases don't read as `undefined` for existing users.
+const downloadSettingsStorage = {
+    ...baseDownloadSettingsStorage,
+    getItem: (key: string, initialValue: DownloadSettings) => {
+        const stored = baseDownloadSettingsStorage.getItem(key, initialValue)
+        return { ...defaultDownloadSettings, ...stored }
+    },
+}
+
 export const downloadSettingsAtom = atomWithStorage<DownloadSettings>(
     DOWNLOAD_SETTINGS_STORAGE_KEY,
     defaultDownloadSettings,
-    createAtomStorage<DownloadSettings>(),
+    downloadSettingsStorage,
     { getOnInit: true },
 )
 

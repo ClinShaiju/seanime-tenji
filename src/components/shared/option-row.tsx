@@ -51,17 +51,17 @@ export function OptionRow({
         >
             <View className="flex-1 mr-3">
                 <Text className="text-foreground text-sm font-medium">{label}</Text>
-                {/* {detail ? (
-                 <Text
-                 className={cn(
-                 "text-white/35 text-xs mt-0.5",
-                 monoDetail && "font-mono",
-                 )}
-                 numberOfLines={1}
-                 >
-                 {detail}
-                 </Text>
-                 ) : null} */}
+                {detail ? (
+                    <Text
+                        className={cn(
+                            "text-muted-foreground text-xs mt-0.5",
+                            monoDetail && "font-mono",
+                        )}
+                        numberOfLines={1}
+                    >
+                        {detail}
+                    </Text>
+                ) : null}
             </View>
             {active ? (
                 <Ionicons name="checkmark-circle" size={20} color={BRAND_ACCENT} />

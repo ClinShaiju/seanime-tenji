@@ -57,7 +57,7 @@ export function HorizontalMediaCardList<T extends "anime" | "manga">(props: Hori
     }), [])
 
     const renderItem = React.useCallback(({ item, index }: ListRenderItemInfo<AL_BaseAnime | AL_BaseManga>) => {
-        if (index === limit - 1) {
+        if (index === limit - 1 && media.length > limit) {
             return (
                 <View
                     style={{ width: CARD_WIDTH, height: CARD_WIDTH * 1.5 }}

@@ -1,7 +1,25 @@
 import { Status } from "@/api/generated/types"
-import { createAtomStorage, getStoredJsonValue } from "@/atoms/storage"
+import { getSecureStoredString, secureStringStorage } from "@/atoms/secure-tokens"
+import { createAtomStorage } from "@/atoms/storage"
 import { atom, useAtomValue, useSetAtom } from "jotai"
-import { atomWithStorage } from "jotai/utils"
+import { atomWithStorage, createJSONStorage } from "jotai/utils"
+
+// The two bearer credentials live in the iOS Keychain (via secure-tokens.ts), not the
+// plaintext MMKV store. JSON-encoded so the format matches the previous MMKV storage,
+// letting hydrateSecureTokens() migrate existing tokens verbatim.
+function createSecureTokenStorage() {
+    return createJSONStorage<string | null>(() => secureStringStorage)
+}
+
+function readSecureToken(key: string): string | null {
+    const raw = getSecureStoredString(key)
+    if (raw == null) return null
+    try {
+        return JSON.parse(raw) as string | null
+    } catch {
+        return null
+    }
+}
 
 /**
  * Server URL
@@ -11,7 +29,7 @@ const serverUrlAtom = atomWithStorage<string | null>("sea-server-url", null, cre
 export const SERVER_AUTH_TOKEN_STORAGE_KEY = "sea-server-auth-token"
 const serverAuthTokenAtom = atomWithStorage<string | null>(SERVER_AUTH_TOKEN_STORAGE_KEY,
     null,
-    createAtomStorage<string | null>(),
+    createSecureTokenStorage(),
     { getOnInit: true })
 
 export function useServerUrl() {
@@ -36,7 +54,7 @@ export function useSetServerAuthToken() {
 }
 
 export function getStoredServerAuthToken() {
-    return getStoredJsonValue<string | null>(SERVER_AUTH_TOKEN_STORAGE_KEY)
+    return readSecureToken(SERVER_AUTH_TOKEN_STORAGE_KEY)
 }
 
 /**
@@ -50,7 +68,7 @@ export function getStoredServerAuthToken() {
 export const SESSION_TOKEN_STORAGE_KEY = "sea-session-token"
 const sessionTokenAtom = atomWithStorage<string | null>(SESSION_TOKEN_STORAGE_KEY,
     null,
-    createAtomStorage<string | null>(),
+    createSecureTokenStorage(),
     { getOnInit: true })
 
 export function useSessionToken() {
@@ -62,7 +80,7 @@ export function useSetSessionToken() {
 }
 
 export function getStoredSessionToken() {
-    return getStoredJsonValue<string | null>(SESSION_TOKEN_STORAGE_KEY)
+    return readSecureToken(SESSION_TOKEN_STORAGE_KEY)
 }
 
 /**
@@ -101,5 +119,35 @@ export function useMediaCardDisplaySettings() {
         hideAudienceScore: useAtomValue(hideAudienceScoreAtom),
         blurAdultContent: useAtomValue(blurAdultContentAtom),
         showAnimeUnwatchedCount: useAtomValue(showAnimeUnwatchedCountAtom),
+    }
+}
+
+// Narrow selectors for the episode-spoiler themeSettings fields, used by per-item episode
+// components (episode-list-item, episode-card-list) so they only re-render when a spoiler
+// setting actually flips, not on every serverStatusAtom write.
+const hideAnimeSpoilersAtom = atom(get => get(serverStatusAtom)?.themeSettings?.hideAnimeSpoilers)
+const hideAnimeSpoilerSkipNextEpisodeAtom = atom(get => get(serverStatusAtom)?.themeSettings?.hideAnimeSpoilerSkipNextEpisode)
+const hideAnimeSpoilerThumbnailsAtom = atom(get => get(serverStatusAtom)?.themeSettings?.hideAnimeSpoilerThumbnails)
+const hideAnimeSpoilerTitlesAtom = atom(get => get(serverStatusAtom)?.themeSettings?.hideAnimeSpoilerTitles)
+const hideAnimeSpoilerDescriptionsAtom = atom(get => get(serverStatusAtom)?.themeSettings?.hideAnimeSpoilerDescriptions)
+
+export function useEpisodeSpoilerThemeSettings() {
+    return {
+        hideAnimeSpoilers: useAtomValue(hideAnimeSpoilersAtom),
+        hideAnimeSpoilerSkipNextEpisode: useAtomValue(hideAnimeSpoilerSkipNextEpisodeAtom),
+        hideAnimeSpoilerThumbnails: useAtomValue(hideAnimeSpoilerThumbnailsAtom),
+        hideAnimeSpoilerTitles: useAtomValue(hideAnimeSpoilerTitlesAtom),
+        hideAnimeSpoilerDescriptions: useAtomValue(hideAnimeSpoilerDescriptionsAtom),
+    }
+}
+
+// Narrow selectors for the two debrid settings fields per-item prewarm indicators need.
+const debridEnabledAtom = atom(get => !!get(serverStatusAtom)?.debridSettings?.enabled)
+const debridPreloadNextStreamAtom = atom(get => !!get(serverStatusAtom)?.debridSettings?.preloadNextStream)
+
+export function useDebridPrewarmSettings() {
+    return {
+        enabled: useAtomValue(debridEnabledAtom),
+        preloadNextStream: useAtomValue(debridPreloadNextStreamAtom),
     }
 }

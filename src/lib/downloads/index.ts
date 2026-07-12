@@ -90,6 +90,7 @@ export {
     isMangaChapterActive,
     isMangaChapterDownloading,
     getMangaDownloadDiskUsage,
+    getMediaMangaDownloadDiskUsage,
     resumeMangaChapterDownload,
     resumeStalledMangaDownloads,
     retryMangaChapterDownload,

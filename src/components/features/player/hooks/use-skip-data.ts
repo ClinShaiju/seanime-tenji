@@ -3,6 +3,8 @@ import type { MobilePlaybackSource } from "@/lib/player/types"
 import { toast } from "@/lib/utils/toast"
 import React from "react"
 
+const ANISKIP_TIMEOUT_MS = 8_000
+
 interface SkipInterval {
     startTime: number
     endTime: number
@@ -93,7 +95,14 @@ export function useSkipData({
         }
 
         let active = true
-        fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${epNum}?types[]=ed&types[]=mixed-ed&types[]=mixed-op&types[]=op&types[]=recap&episodeLength=`)
+        // Bound the third-party AniSkip call so a bad connection can't hang ~60s per
+        // episode-open (and withhold the locally-computed chapter skip data that whole time).
+        const abortController = new AbortController()
+        const timeoutId = setTimeout(() => abortController.abort(), ANISKIP_TIMEOUT_MS)
+        fetch(
+            `https://api.aniskip.com/v2/skip-times/${malId}/${epNum}?types[]=ed&types[]=mixed-ed&types[]=mixed-op&types[]=op&types[]=recap&episodeLength=`,
+            { signal: abortController.signal },
+        )
             .then(res => res.json())
             .then(data => {
                 if (!active) return
@@ -112,9 +121,12 @@ export function useSkipData({
             .catch(() => {
                 if (active) setSkipData(chapterSkip)
             })
+            .finally(() => clearTimeout(timeoutId))
 
         return () => {
             active = false
+            clearTimeout(timeoutId)
+            abortController.abort()
         }
     }, [source?.media?.idMal, source?.episodeNumber, chapters, duration])
 

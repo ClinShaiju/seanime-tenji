@@ -56,7 +56,6 @@ const PANEL_META: Record<PlayerPanel, { title: string; icon?: React.ReactNode }>
     episodes: { title: "Episodes", icon: <List size={15} color={BRAND_ACCENT} /> },
     "audio-subtitles": { title: "Audio & Subtitles", icon: <Captions size={15} color={BRAND_ACCENT} /> },
     speed: { title: "Playback Speed", icon: <Gauge size={15} color={BRAND_ACCENT} /> },
-    "seek-buttons": { title: "Forward / Back Seek", icon: <SkipForward size={15} color={BRAND_ACCENT} /> },
     "double-tap-seek": { title: "Double-Tap Seek", icon: <RotateCw size={15} color={BRAND_ACCENT} /> },
     "subtitle-delay": { title: "Subtitle Delay", icon: <Timer size={15} color="#f59e0b" /> },
     "audio-delay": { title: "Audio Delay", icon: <Timer size={15} color="#a78bfa" /> },
@@ -201,16 +200,6 @@ export function PlayerPanelOverlay(props: PlayerPanelOverlayProps) {
                             props.onSetSpeed(s)
                             onClose()
                         }}
-                        />
-                    )}
-                    {panel === "seek-buttons" && (
-                        <SeekAmountContent
-                            current={prefs.buttonSeekSec}
-                            description="Choose how far the center rewind and forward controls jump during playback."
-                            onSelect={(seconds) => {
-                                updatePrefs({ buttonSeekSec: seconds })
-                                onClose()
-                            }}
                         />
                     )}
                     {panel === "double-tap-seek" && (

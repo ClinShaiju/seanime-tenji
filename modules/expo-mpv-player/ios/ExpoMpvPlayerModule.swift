@@ -11,33 +11,15 @@
 import ExpoModulesCore
 import UIKit
 
-private let orientationLockChangedNotification = Notification.Name("ExpoMpvPlayerOrientationLockChanged")
-private let orientationLockMaskUserInfoKey = "mask"
-
 public class ExpoMpvPlayerModule: Module {
     public func definition() -> ModuleDefinition {
         Name("ExpoMpvPlayer")
 
-        // Module-level functions (orientation lock)
-        Function("lockLandscape") {
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: orientationLockChangedNotification,
-                    object: nil,
-                    userInfo: [orientationLockMaskUserInfoKey: "landscape"]
-                )
-            }
-        }
+        // Orientation is driven entirely by ScreenOrientation.lockAsync on the JS side;
+        // these remain as no-ops so the shared JS call sites stay valid (mirrors Android).
+        Function("lockLandscape") { }
 
-        Function("unlockOrientation") {
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: orientationLockChangedNotification,
-                    object: nil,
-                    userInfo: [orientationLockMaskUserInfoKey: "portrait"]
-                )
-            }
-        }
+        Function("unlockOrientation") { }
 
         Function("setWindowBrightness") { (brightness: Double) in }
 

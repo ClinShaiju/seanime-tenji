@@ -57,7 +57,7 @@ export function getAnimeSearchVariables(params: SearchParams, page: number) {
             params.sorting === "START_DATE_DESC"
                 ? params.status.filter(s => s !== "NOT_YET_RELEASED").length > 0
                     ? params.status.filter(s => s !== "NOT_YET_RELEASED")
-                    : undefined
+                    : ["FINISHED", "RELEASING"]
                 : params.status.length > 0
                     ? params.status
                     : undefined,
@@ -83,7 +83,7 @@ export function getMangaSearchVariables(params: SearchParams, page: number) {
             params.sorting === "START_DATE_DESC"
                 ? params.status.filter(s => s !== "NOT_YET_RELEASED").length > 0
                     ? params.status.filter(s => s !== "NOT_YET_RELEASED")
-                    : undefined
+                    : ["FINISHED", "RELEASING"]
                 : params.status.length > 0
                     ? params.status
                     : undefined,

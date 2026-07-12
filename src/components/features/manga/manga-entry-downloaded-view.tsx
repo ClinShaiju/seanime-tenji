@@ -12,7 +12,7 @@ import {
     useDeleteAllMangaDownloadsForMedia,
     useDeleteMangaChapterDownload,
 } from "@/lib/downloads"
-import { getMangaDownloadDiskUsage } from "@/lib/downloads/manga-download-manager"
+import { getMediaMangaDownloadDiskUsage } from "@/lib/downloads/manga-download-manager"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import * as React from "react"
@@ -50,7 +50,10 @@ export function MangaEntryDownloadedView({ media }: MangaEntryDownloadedViewProp
         resetKey: mediaId,
     })
 
-    const diskBytes = React.useMemo(() => getMangaDownloadDiskUsage(), [allChapters])
+    // Scope the disk walk to this manga (M11) and recompute only when a chapter
+    // completes or is deleted (M10) — keying on completedChapters.length avoids the
+    // ~4x/sec full walk that a raw `allChapters` dep triggered on every progress tick.
+    const diskBytes = React.useMemo(() => getMediaMangaDownloadDiskUsage(mediaId), [mediaId, completedChapters.length])
 
     if (allChapters.length === 0) {
         return (

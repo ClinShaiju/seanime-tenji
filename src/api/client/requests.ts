@@ -12,6 +12,10 @@ import { useEffect } from "react"
 export type SeaError = Error & {
     error: string
     status?: number
+    // Set when the rejection came from a request abort (timeout). Outer toast layers
+    // (useServerMutation/useServerQuery) skip aborted rejections so a deliberate 45s
+    // timeout doesn't surface a spurious "Server Error: Aborted" toast.
+    aborted?: boolean
 }
 
 const log = logger("requests")
@@ -29,6 +33,9 @@ type SeaQuery<D> = {
     params?: D
     authToken?: string | null
     muteError?: boolean
+    // Force reading the response as binary instead of JSON/text. FormData request bodies
+    // are auto-detected (no flag needed); this is only for binary *responses*.
+    responseType?: "json" | "blob" | "arraybuffer"
 }
 
 function createSeaError(message: string, status?: number): SeaError {
@@ -84,6 +91,7 @@ export async function buildSeaQuery<T, D = unknown>(
         params,
         authToken,
         muteError,
+        responseType,
     }: SeaQuery<D>): Promise<T | undefined> {
     const url = new URL(getServerBaseUrl(serverUrl) + endpoint)
     const resolvedAuthToken = authToken ?? getStoredServerAuthToken()
@@ -97,18 +105,22 @@ export async function buildSeaQuery<T, D = unknown>(
         })
     }
 
+    // For multipart uploads let fetch derive the Content-Type (incl. the boundary);
+    // hard-coding application/json here breaks c.FormFile("file") on the server.
+    const isFormData = typeof FormData !== "undefined" && data instanceof FormData
+
     // Configure fetch options
     const options: RequestInit = {
         method,
         headers: {
-            "Content-Type": "application/json",
+            ...(isFormData ? {} : { "Content-Type": "application/json" }),
             ...getServerAuthHeaders(resolvedAuthToken),
             ...getClientHeaders(),
         },
     }
 
     if (data && method !== "GET") {
-        options.body = JSON.stringify(data)
+        options.body = isFormData ? (data as FormData) : JSON.stringify(data)
     }
 
     if (isManualOfflineModeEnabled()) {
@@ -116,14 +128,32 @@ export async function buildSeaQuery<T, D = unknown>(
     }
 
     // AbortController + setTimeout instead of AbortSignal.timeout (not available on Hermes)
+    let timedOut = false
     const timeoutController = new AbortController()
-    const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
+    const timeoutId = setTimeout(() => {
+        timedOut = true
+        timeoutController.abort()
+    }, REQUEST_TIMEOUT_MS)
     options.signal = timeoutController.signal
 
     try {
         const response = await fetch(url.toString(), options)
         markServerReachable()
         saveClientIdentityFromHeaders(response.headers)
+
+        // Binary responses (e.g. the /report zip download) must not go through text()/JSON.parse
+        // — that UTF-8-mangles the bytes. Honor an explicit responseType or a binary content-type.
+        const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
+        const wantsBinary = responseType === "blob" || responseType === "arraybuffer"
+            || contentType.includes("application/zip")
+            || contentType.includes("application/octet-stream")
+        if (wantsBinary) {
+            if (!response.ok) {
+                throw createSeaError(`Request failed with status ${response.status}`, response.status)
+            }
+            const body = responseType === "arraybuffer" ? await response.arrayBuffer() : await response.blob()
+            return body as T
+        }
 
         const text = await response.text()
         let responseData: { data?: T; error?: string } | undefined
@@ -158,7 +188,11 @@ export async function buildSeaQuery<T, D = unknown>(
     catch (error: unknown) {
         const seaError = normalizeSeaError(error)
         const wasAborted = error instanceof Error && error.name === "AbortError"
-        const connectivityFailure = isConnectivityFailure(error, seaError)
+        // Mark aborted rejections so the outer hook toast layers can skip them.
+        if (wasAborted) seaError.aborted = true
+        // A timeout abort (not a user/navigation abort) is a bad-but-not-dead connection —
+        // count it as a connectivity failure so the offline UX path engages (L6).
+        const connectivityFailure = isConnectivityFailure(error, seaError) || (wasAborted && timedOut)
 
         if (connectivityFailure) {
             markServerUnreachable()
@@ -183,12 +217,14 @@ export async function buildSeaQuery<T, D = unknown>(
 type ServerMutationProps<R, V = void> = UseMutationOptions<R | undefined, SeaError, V, unknown> & {
     endpoint: string
     method: "POST" | "GET" | "PATCH" | "DELETE" | "PUT"
+    muteError?: boolean
 }
 
 export function useServerMutation<R = void, V = void>(
     {
         endpoint,
         method,
+        muteError,
         onError: userOnError,
         ...options
     }: ServerMutationProps<R, V>) {
@@ -205,8 +241,9 @@ export function useServerMutation<R = void, V = void>(
                 return
             }
 
-            // suppress error toasts when the device is offline
-            if (isGlobalConnected()) {
+            // This hook layer is the single toast owner (buildSeaQuery is muted below), so
+            // suppress when offline, when muted, or when the request was aborted (timeout).
+            if (!muteError && !error.aborted && isGlobalConnected()) {
                 toast.error(_handleSeaError(error.error))
             }
 
@@ -219,6 +256,8 @@ export function useServerMutation<R = void, V = void>(
                 method: method,
                 data: variables,
                 authToken,
+                // Mute the inner toast — the hook onError above is the single owner.
+                muteError: true,
             })
         },
         ...options,
@@ -256,7 +295,8 @@ export function useServerQuery<R, V = any>(
                 params: params,
                 data: data,
                 authToken,
-                muteError,
+                // Mute the inner toast — the error effect below is the single owner.
+                muteError: true,
             })
         },
         ...options,
@@ -271,7 +311,8 @@ export function useServerQuery<R, V = any>(
             return
         }
 
-        if (!muteError && isGlobalConnected()) {
+        // Single toast owner for the query path; skip aborted (timeout) rejections.
+        if (!muteError && !props.error?.aborted && isGlobalConnected()) {
             log.warning("Server error", props.error)
             toast.error(_handleSeaError(props.error?.error))
         }

@@ -20,14 +20,16 @@ export function useAnilistCollectionLoader() {
 
     const { setAnimeCollection } = useAnilistAnimeCollectionAtom()
     const { setAnimeEntryListData } = useAnilistAnimeEntryListDataAtom()
-    React.useLayoutEffect(() => {
+    React.useEffect(() => {
         if (_animeCollection) {
             setAnimeCollection(_animeCollection)
             // const allMedia = _animeCollection.MediaListCollection?.lists?.flatMap(n => n?.entries)?.filter(Boolean)?.map(n =>
             // n.media)?.filter(Boolean) ?? []
 
             const listData = _animeCollection.MediaListCollection?.lists?.flatMap(n => n?.entries)?.filter(Boolean)?.reduce((acc, n) => {
-                acc[String(n.media?.id!)] = {
+                const mediaId = n.media?.id
+                if (!mediaId) return acc
+                acc[String(mediaId)] = {
                     status: n.status,
                     progress: n.progress || 0,
                     score: n.score || 0,
@@ -45,7 +47,7 @@ export function useAnilistCollectionLoader() {
     }, [_animeCollection])
 
     const { setAnimeLibraryEntryData } = useAnimeLibraryEntryDataAtom()
-    React.useLayoutEffect(() => {
+    React.useEffect(() => {
         if (_animeLibraryCollection) {
             const entryData = _animeLibraryCollection.lists?.flatMap(n => n?.entries)?.filter(Boolean)?.reduce((acc, n) => {
                 acc[String(n.mediaId)] = {
@@ -61,12 +63,14 @@ export function useAnilistCollectionLoader() {
 
     const { setMangaCollection } = useAnilistMangaCollectionAtom()
     const { setMangaEntryListData } = useAnilistMangaEntryListDataAtom()
-    React.useLayoutEffect(() => {
+    React.useEffect(() => {
         if (_mangaCollection) {
             setMangaCollection(_mangaCollection)
 
             const listData = _mangaCollection.MediaListCollection?.lists?.flatMap(n => n?.entries)?.filter(Boolean)?.reduce((acc, n) => {
-                acc[String(n.media?.id!)] = {
+                const mediaId = n.media?.id
+                if (!mediaId) return acc
+                acc[String(mediaId)] = {
                     status: n.status,
                     progress: n.progress || 0,
                     score: n.score || 0,

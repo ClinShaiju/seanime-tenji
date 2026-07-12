@@ -1,6 +1,8 @@
 import "../global.css"
 import { ServerUrlWrapper } from "@/api/components/server-data-wrapper"
 import { WebsocketProvider } from "@/api/components/websocket-provider"
+import { hydrateSecureTokens } from "@/atoms/secure-tokens"
+import { SERVER_AUTH_TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY } from "@/atoms/server.atoms"
 import { getStoredTheme } from "@/atoms/storage"
 import { setAndroidNavigationBar } from "@/lib/android-navigation-bar"
 import { AppReleaseUpdatePrompt } from "@/lib/app-release-updates"
@@ -54,6 +56,10 @@ const queryClient = new QueryClient({
 hydrateQueryClient(queryClient, OFFLINE_QUERY_KEYS)
 // Auto-persist successful query results to MMKV
 setupQueryPersistence(queryClient)
+// Load the bearer tokens from the iOS Keychain into the sync mirror (migrating any legacy
+// plaintext MMKV copy). Kicked off at module load so it resolves during the splash/auth
+// gate, before authenticated requests fire. Fail-safe: on error the user simply re-logs in.
+hydrateSecureTokens([SERVER_AUTH_TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY])
 
 function CompactToast({ icon, iconColor, text }: { icon: React.ComponentProps<typeof Ionicons>["name"]; iconColor: string; text: string }) {
     return (

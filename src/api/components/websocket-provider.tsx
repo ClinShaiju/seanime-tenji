@@ -68,7 +68,10 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
                 true)}/events?${searchParams.toString()}`
             const s = new WebSocket(socketUrl)
             currentSocket = s
-            logger("websocket-provider").info("Connecting to WebSocket", socketUrl)
+            // Never log the credentialed URL: `token`/`session` are full-account bearers and
+            // logger entries persist raw to MMKV (redaction only runs at export time).
+            const redactedUrl = socketUrl.replace(/([?&](?:token|session)=)[^&]+/gi, "$1[redacted]")
+            logger("websocket-provider").info("Connecting to WebSocket", redactedUrl)
 
             s.addEventListener("open", () => {
                 logger("websocket-provider").info("WebSocket connection opened")
@@ -100,9 +103,19 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
                     return
                 }
 
+                let message: { type?: string; payload?: unknown }
                 try {
-                    const message = JSON.parse(event.data) as { type?: string; payload?: unknown }
-                    if (typeof message?.type !== "string") return
+                    message = JSON.parse(event.data) as { type?: string; payload?: unknown }
+                }
+                catch (err) {
+                    // iOS has no console; surface parse failures via the offline logger.
+                    logger("websocket-provider").warning("Failed to parse WebSocket message", err)
+                    return
+                }
+
+                if (typeof message?.type !== "string") return
+
+                try {
                     if (message.type === CLIENT_IDENTITY_EVENT) {
                         const payload = message.payload as { clientId?: string } | null
                         if (typeof payload?.clientId === "string" && payload.clientId) {
@@ -112,7 +125,9 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
                     }
                     dispatchWsMessage({ type: message.type, payload: message.payload })
                 }
-                catch {
+                catch (err) {
+                    // A throwing subscriber must not silently kill the ingress; log and move on.
+                    logger("websocket-provider").error("WebSocket message handler threw", message.type, err)
                 }
             })
 
@@ -120,7 +135,13 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
             return s
         }
 
-        if (!socket || socket.readyState === WebSocket.CLOSED) {
+        // On any dependency change (login/logout session flip, serverUrl/authToken/protocol
+        // edit) React runs the previous cleanup first — which calls close(), moving the old
+        // socket to CLOSING *synchronously* — then this body in the same commit. The old
+        // guard (`=== CLOSED`) saw a non-null CLOSING socket and skipped the reconnect, so
+        // the whole event plane went silently dead until a background/foreground cycle.
+        // Treat anything at/past CLOSING as reconnectable so a dep change always reconnects.
+        if (!socket || socket.readyState >= WebSocket.CLOSING) {
             connectWebSocket()
         }
 
@@ -170,6 +191,10 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
             } else if (socket) {
                 socket.close()
             }
+            // The closing socket's close-listener no-ops (cancelled), so flip the connected
+            // state here — otherwise websocketConnectedAtom keeps reporting "connected" while
+            // the plane is dead, and the debrid reconnect-resume never re-arms.
+            setIsConnected(false)
         }
     }, [manualOffline, serverAuthToken, sessionToken, serverUrl, serverUrlProtocol, setConnectionState, setIsConnected, setSocket])
 

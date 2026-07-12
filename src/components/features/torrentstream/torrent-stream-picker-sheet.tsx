@@ -1211,7 +1211,6 @@ function startCaseLabel(value: string) {
 }
 
 function MetaTag({ label, tone = "default", icon }: { label: string; tone?: "default" | "muted" | "subtle" | "indigo"; icon?: React.ReactNode }) {
-    tone = "muted"
     const style = tone === "muted"
         ? { bg: "transparent", color: "rgba(255,255,255,0.55)" }
         : tone === "subtle"
