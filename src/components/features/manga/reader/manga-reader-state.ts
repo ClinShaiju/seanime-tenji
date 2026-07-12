@@ -14,12 +14,22 @@ export const MANGA_READING_DIRECTION = {
     RTL: "rtl",
 } as const
 
+// mirrors web's MangaPageFit (Contain/Overflow/Cover/True size)
+export const MANGA_PAGE_FIT = {
+    CONTAIN: "contain",
+    OVERFLOW: "overflow",
+    COVER: "cover",
+    TRUE_SIZE: "true-size",
+} as const
+
 export type MangaReadingMode = typeof MANGA_READING_MODE[keyof typeof MANGA_READING_MODE]
 export type MangaReadingDirection = typeof MANGA_READING_DIRECTION[keyof typeof MANGA_READING_DIRECTION]
+export type MangaPageFit = typeof MANGA_PAGE_FIT[keyof typeof MANGA_PAGE_FIT]
 
 export type MangaReaderSettings = {
     readingMode: MangaReadingMode
     readingDirection: MangaReadingDirection
+    pageFit: MangaPageFit
     pageGap: boolean
     pageGapAmount: number
     pageGapShadow: boolean
@@ -50,6 +60,7 @@ export function getDefaultMangaReaderSettings(): MangaReaderSettings {
     return {
         readingMode: MANGA_READING_MODE.LONG_STRIP,
         readingDirection: MANGA_READING_DIRECTION.RTL,
+        pageFit: MANGA_PAGE_FIT.CONTAIN,
         pageGap: true,
         pageGapAmount: 10,
         pageGapShadow: true,

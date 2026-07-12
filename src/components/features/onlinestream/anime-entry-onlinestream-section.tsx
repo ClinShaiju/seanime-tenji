@@ -1,7 +1,8 @@
-import type { Anime_Entry, Anime_Episode, Onlinestream_Episode } from "@/api/generated/types"
+import type { Anime_Entry, Anime_Episode, Onlinestream_Episode, Onlinestream_VideoSource } from "@/api/generated/types"
 import { animeEntryPlaybackIntentAtom } from "@/atoms/anime-entry.atoms"
 import { EpisodeListItem } from "@/components/features/anime/episode-list-item"
 import { OnlinestreamManualMatchModal } from "@/components/features/onlinestream/onlinestream-manual-match-modal"
+import { useOnlinestreamAutoCycler } from "@/components/features/onlinestream/use-onlinestream-auto-cycler"
 import { useOnlinestreamController } from "@/components/features/onlinestream/use-onlinestream-controller"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { EPISODE_PAGE_SIZE, EpisodePageSelector } from "@/components/shared/episode-page-selector"
@@ -9,10 +10,17 @@ import { LabeledSwitch } from "@/components/shared/labeled-switch"
 import { NativeSelect } from "@/components/shared/native-select"
 import { Surface } from "@/components/shared/surface"
 import { FormSectionLabel } from "@/components/ui/form-field"
-import { usePlaybackCoordinator } from "@/lib/player"
+import {
+    currentPlaybackSourceAtom,
+    playerErrorAtom,
+    playerOpenAtom,
+    toSourceFromOnlineStream,
+    usePlaybackCoordinator,
+    useStartOnlineStreamPlayback,
+} from "@/lib/player"
 import { cn } from "@/lib/utils"
 import { Ionicons } from "@expo/vector-icons"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import * as React from "react"
 import { ActivityIndicator, Pressable, Text, useWindowDimensions, View } from "react-native"
 
@@ -26,6 +34,64 @@ export function AnimeEntryOnlinestreamSection({ entry }: AnimeEntryOnlinestreamS
     const [playbackIntent, setPlaybackIntent] = useAtom(animeEntryPlaybackIntentAtom)
     const [manualMatchOpen, setManualMatchOpen] = React.useState(false)
 
+    // Auto-cycler: the episode the current playback attempt targets, and a way to
+    // (re)load a resolved source into the player (in-place when it's already open,
+    // otherwise pushing the route).
+    const [attemptedEpisode, setAttemptedEpisode] = React.useState<number | null>(null)
+    const startOnlinePlayback = useStartOnlineStreamPlayback()
+    const [, setSource] = useAtom(currentPlaybackSourceAtom)
+    const setPlayerError = useSetAtom(playerErrorAtom)
+    const playerIsOpen = useAtomValue(playerOpenAtom)
+    const playerIsOpenRef = React.useRef(playerIsOpen)
+    playerIsOpenRef.current = playerIsOpen
+
+    const playVideoSource = React.useCallback((videoSource: Onlinestream_VideoSource, episodeNumber: number) => {
+        if (!entry.media) return
+        const ep = controller.episodes.find(e => e.number === episodeNumber)
+        const source = toSourceFromOnlineStream({
+            videoSource,
+            mediaId: entry.media.id,
+            episodeNumber,
+            media: entry.media,
+            episode: ep?.metadata,
+            entryListData: entry.listData ?? undefined,
+            episodes: entry.episodes ?? undefined,
+        })
+        if (playerIsOpenRef.current) {
+            setPlayerError(null)
+            setSource(source) // in-place reload of the already-open player
+        } else {
+            startOnlinePlayback(source) // opens the player route
+        }
+    }, [entry.media, entry.listData, entry.episodes, controller.episodes, setPlayerError, setSource, startOnlinePlayback])
+
+    const cycler = useOnlinestreamAutoCycler({
+        mediaId: controller.mediaId,
+        provider: controller.provider,
+        setProvider: controller.setProvider,
+        dubbed: controller.dubbed,
+        providerExtensions: controller.providerExtensions,
+        episodes: controller.episodes,
+        isLoadingEpisodes: controller.isLoadingEpisodes,
+        episodeListIsError: controller.episodeListIsError,
+        episodeListIsFetched: controller.episodeListIsFetched,
+        availableServers: controller.availableServers,
+        selectedServer: controller.selectedServer,
+        setSelectedServer: controller.setSelectedServer,
+        setSelectedQuality: controller.setSelectedQuality,
+        selectedVideoSource: controller.selectedVideoSource,
+        isLoadingSource: controller.isLoadingSource,
+        episodeSourceIsError: controller.episodeSourceIsError,
+        episodeSourceIsFetched: controller.episodeSourceIsFetched,
+        requestPlay: controller.requestPlay,
+        cancelPlayRequest: controller.cancelPlayRequest,
+        playRequestedEpisode: controller.playRequestedEpisode,
+        currentEpisodeNumber: attemptedEpisode,
+        playerIsOpen,
+        playVideoSource,
+    })
+    const cyclerIsTrying = cycler.isTrying
+
     const onlinestreamEpisodeMap = React.useMemo(() => {
         const map = new Map<number, Onlinestream_Episode>()
         for (const ep of controller.episodes) {
@@ -38,14 +104,17 @@ export function AnimeEntryOnlinestreamSection({ entry }: AnimeEntryOnlinestreamS
         const epNumber = episode.episodeNumber
         if (controller.playRequestedEpisode === epNumber) {
             controller.cancelPlayRequest()
+            setAttemptedEpisode(null)
             return
         }
         firedPlayRef.current = null
+        setAttemptedEpisode(epNumber)
         controller.requestPlay(epNumber)
     }, [controller])
 
     const firedPlayRef = React.useRef<string | null>(null)
     React.useEffect(() => {
+        if (cyclerIsTrying) return // cycler owns playback while cycling
         if (controller.playRequestedEpisode === null) return
         if (!controller.selectedVideoSource) return
         if (controller.isLoadingSource) return
@@ -71,6 +140,7 @@ export function AnimeEntryOnlinestreamSection({ entry }: AnimeEntryOnlinestreamS
         controller.episodes,
         playOnlineStreamEpisode,
         controller,
+        cyclerIsTrying,
     ])
 
     React.useEffect(() => {
@@ -92,6 +162,7 @@ export function AnimeEntryOnlinestreamSection({ entry }: AnimeEntryOnlinestreamS
 
         handledPlaybackIntentRef.current = playbackIntent.id
         firedPlayRef.current = null
+        setAttemptedEpisode(playbackIntent.episodeNumber)
         controller.requestPlay(playbackIntent.episodeNumber)
         setPlaybackIntent(current => current?.id === playbackIntent.id ? null : current)
     }, [controller, entry.mediaId, playbackIntent, setPlaybackIntent])
@@ -246,6 +317,30 @@ export function AnimeEntryOnlinestreamSection({ entry }: AnimeEntryOnlinestreamS
                                 )}
                             </Pressable>
                         </View>
+
+                        {cycler.showButton && (
+                            <Pressable
+                                onPress={cycler.isTrying ? cycler.cancel : cycler.tryAll}
+                                className={cn(
+                                    "h-9 w-full flex-row items-center justify-center gap-2 rounded-full border px-3.5",
+                                    cycler.isTrying
+                                        ? "border-white/10 bg-white/[0.04] active:bg-white/10"
+                                        : "border-brand-300 bg-brand-300/15 active:bg-brand-300/25",
+                                )}
+                            >
+                                {cycler.isTrying && (
+                                    <ActivityIndicator size="small" color="rgba(255,255,255,0.6)" />
+                                )}
+                                <Text
+                                    className={cn(
+                                        "text-sm font-medium",
+                                        cycler.isTrying ? "text-foreground/70" : "text-brand-300",
+                                    )}
+                                >
+                                    {cycler.isTrying ? "Trying sources… tap to stop" : "Try other sources"}
+                                </Text>
+                            </Pressable>
+                        )}
                     </View>
                 </Surface>
             </View>

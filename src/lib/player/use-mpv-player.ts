@@ -13,8 +13,14 @@ import type {
     SubtitleHorizontalAlignment,
     SubtitleVerticalAlignment,
 } from "expo-mpv-player"
-import { useAtomValue } from "jotai/react"
+import { useAtomValue, useSetAtom } from "jotai/react"
 import React from "react"
+import {
+    getMediaAudioPreference,
+    mediaAudioPreferenceToTags,
+    setMediaAudioPreference,
+} from "./media-audio-preference"
+import { nativePlaybackErrorAtom, nativePlaybackReachedAtom } from "./onlinestream-playback-signal"
 import { findPreferredTrack, getPlayerPreferences, setPlayerPreferences } from "./player-preferences"
 import { useActivePlaybackSource } from "./session"
 
@@ -84,6 +90,22 @@ export function useMpvPlayer() {
     const loadedSourceId = React.useRef<string | null>(null)
     const durationRef = React.useRef(0)
 
+    // Cross-route playback signals consumed by the online-stream auto-cycler.
+    const setNativePlaybackError = useSetAtom(nativePlaybackErrorAtom)
+    const setNativePlaybackReached = useSetAtom(nativePlaybackReachedAtom)
+    const reachedRef = React.useRef(false)
+
+    // Latest audio tracks + media id, kept in refs so `setAudioTrack` can capture a
+    // manual choice without re-subscribing to state/source in its callback deps.
+    const audioTracksRef = React.useRef<PlayerState["audioTracks"]>([])
+    const mediaIdRef = React.useRef<number | undefined>(undefined)
+    React.useEffect(() => {
+        audioTracksRef.current = state.audioTracks
+    }, [state.audioTracks])
+    React.useEffect(() => {
+        mediaIdRef.current = source?.mediaId
+    }, [source?.mediaId])
+
     // track whether we've applied auto-track + auto-play for the current source
     const hasAppliedDefaultTracks = React.useRef(false)
     const hasAppliedPrefs = React.useRef(false)
@@ -145,21 +167,28 @@ export function useMpvPlayer() {
         durationRef.current = 0
         hasAppliedDefaultTracks.current = false
         hasAppliedPrefs.current = false
+        reachedRef.current = false
+        setNativePlaybackError(null)
+        setNativePlaybackReached(false)
         if (bufferingTimerRef.current !== null) {
             clearTimeout(bufferingTimerRef.current)
             bufferingTimerRef.current = null
         }
         setState({ ...INITIAL_STATE, status: "loading", paused: !shouldAutoplay })
-    }, [shouldAutoplay, source])
+    }, [shouldAutoplay, source, setNativePlaybackError, setNativePlaybackReached])
 
-    // cleanup buffering debounce timer on unmount
+    // cleanup buffering debounce timer + playback signals on unmount (player closed).
+    // Clearing the signals here means backing out of the player does not leave a stale
+    // failure that would make the auto-cycler re-open the player unprompted.
     React.useEffect(() => {
         return () => {
             if (bufferingTimerRef.current !== null) {
                 clearTimeout(bufferingTimerRef.current)
             }
+            setNativePlaybackError(null)
+            setNativePlaybackReached(false)
         }
-    }, [])
+    }, [setNativePlaybackError, setNativePlaybackReached])
 
     // ---------------------------------------------------------------------------
     // Native event handlers (passed as props to MpvPlayerView)
@@ -180,11 +209,17 @@ export function useMpvPlayer() {
         const { position, duration, cacheSeconds: _cache } = event.nativeEvent
         durationRef.current = duration
 
+        // Success signal for the auto-cycler: >= 1s of real playback (fire once per source).
+        if (!reachedRef.current && position >= 1) {
+            reachedRef.current = true
+            setNativePlaybackReached(true)
+        }
+
         setState(s => {
             if (s.currentTime === position && s.duration === duration) return s
             return { ...s, currentTime: position, duration }
         })
-    }, [])
+    }, [setNativePlaybackReached])
 
     const onNativePlaybackStateChange = React.useCallback((event: NativeEvent<OnPlaybackStateChangePayload>) => {
         const payload = event.nativeEvent
@@ -248,8 +283,9 @@ export function useMpvPlayer() {
 
     const onNativeError = React.useCallback((event: NativeEvent<OnErrorEventPayload>) => {
         log.warning("Native error:", event.nativeEvent.error)
+        setNativePlaybackError(getErrorMessage(event.nativeEvent.error) || "Playback error")
         setState(s => ({ ...s, status: "error" }))
-    }, [])
+    }, [setNativePlaybackError])
 
     const onNativePictureInPictureChange = React.useCallback((event: NativeEvent<OnPictureInPictureChangeEventPayload>) => {
         const { isActive } = event.nativeEvent
@@ -362,7 +398,10 @@ export function useMpvPlayer() {
         hasAppliedDefaultTracks.current = true
         const prefs = getPlayerPreferences()
 
-        const preferredAudio = findPreferredTrack(state.audioTracks, prefs.preferredAudioLanguages)
+        // Per-media audio choice (captured from a manual switch) wins over the global default.
+        const mediaTags = mediaAudioPreferenceToTags(getMediaAudioPreference(source?.mediaId))
+        const preferredAudio = (mediaTags ? findPreferredTrack(state.audioTracks, mediaTags) : null)
+            ?? findPreferredTrack(state.audioTracks, prefs.preferredAudioLanguages)
         if (preferredAudio !== null) {
             const currentAudio = state.audioTracks.find(t => t.selected)
             if (currentAudio?.id !== preferredAudio) {
@@ -383,7 +422,7 @@ export function useMpvPlayer() {
         } else {
             runNativeCommand("disableSubtitles", ref => ref.disableSubtitles())
         }
-    }, [runNativeCommand, state.audioTracks, state.subtitleTracks])
+    }, [runNativeCommand, state.audioTracks, state.subtitleTracks, source?.mediaId])
 
     // ---------------------------------------------------------------------------
     // Control callbacks
@@ -424,6 +463,15 @@ export function useMpvPlayer() {
 
     const setAudioTrack = React.useCallback((trackId: number) => {
         runNativeCommand("setAudioTrack", ref => ref.setAudioTrack(trackId))
+
+        // Capture the manual choice per-media so it re-selects (over the global default)
+        // on the next open of this title. Matched later by language/title alias.
+        const chosen = audioTracksRef.current.find(t => t.id === trackId)
+        setMediaAudioPreference(
+            mediaIdRef.current,
+            chosen ? { language: chosen.language, title: chosen.title } : null,
+        )
+
         setState(s => ({
             ...s,
             activeAudioTrackId: trackId,

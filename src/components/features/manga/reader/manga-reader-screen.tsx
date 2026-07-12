@@ -1,8 +1,14 @@
 import { useGetMangaEntry, useGetMangaEntryChapters, useGetMangaEntryPages, useUpdateMangaProgress } from "@/api/hooks/manga.hooks"
 import { useServerStatus, useServerUrl } from "@/atoms/server.atoms"
-import { getReaderImageSize, getReaderPageAspectRatio } from "@/components/features/manga/reader/manga-reader-layout"
+import {
+    getPageFitContentFit,
+    getReaderImageSize,
+    getReaderPageAspectRatio,
+    MANGA_PAGE_FIT_OVERFLOW_SCALE,
+} from "@/components/features/manga/reader/manga-reader-layout"
 import { MangaReaderSettingsSheet } from "@/components/features/manga/reader/manga-reader-settings-sheet"
 import {
+    MANGA_PAGE_FIT,
     MANGA_READING_DIRECTION,
     MANGA_READING_MODE,
     useMangaReaderPosition,
@@ -388,6 +394,14 @@ export function MangaReaderScreen({ mediaId, provider, chapterId, chapterNumber 
                         : "Single Page"
             } else if (key === "readingDirection") {
                 label = value === MANGA_READING_DIRECTION.RTL ? "Right to Left" : "Left to Right"
+            } else if (key === "pageFit") {
+                label = value === MANGA_PAGE_FIT.COVER
+                    ? "Cover"
+                    : value === MANGA_PAGE_FIT.TRUE_SIZE
+                        ? "True Size"
+                        : value === MANGA_PAGE_FIT.OVERFLOW
+                            ? "Overflow"
+                            : "Contain"
             } else if (key === "pageGap") {
                 label = value ? "Page Gaps On" : "Page Gaps Off"
             } else if (key === "pageGapAmount") {
@@ -1286,7 +1300,9 @@ const ReaderImageCard = React.memo(function ReaderImageCard({
         mode,
     })
 
-    const contentFit = "contain"
+    const contentFit = getPageFitContentFit(settings.pageFit)
+    // "Overflow" renders the page wider than the viewport; the frame clips and pinch/scroll pans it
+    const fitScale = settings.pageFit === MANGA_PAGE_FIT.OVERFLOW ? MANGA_PAGE_FIT_OVERFLOW_SCALE : 1
 
     const pagedFrameStyle = isPagedMode
         ? {
@@ -1294,12 +1310,15 @@ const ReaderImageCard = React.memo(function ReaderImageCard({
             height: isDoublePage ? imageHeight : screenHeight,
             alignItems: "center" as const,
             justifyContent: "center" as const,
+            overflow: "hidden" as const,
         }
         : undefined
 
     const imageStyle = isPagedMode
-        ? (isDoublePage ? { width: imageWidth, height: imageHeight } : { width: screenWidth, height: screenHeight })
-        : { width: imageWidth, height: imageHeight }
+        ? (isDoublePage
+            ? { width: imageWidth * fitScale, height: imageHeight * fitScale }
+            : { width: screenWidth * fitScale, height: screenHeight * fitScale })
+        : { width: imageWidth * fitScale, height: imageHeight * fitScale }
 
     const showCardShadow = settings.pageGap && settings.pageGapShadow
     const cardShapeClassName = settings.pageGap

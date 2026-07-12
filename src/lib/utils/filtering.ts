@@ -98,6 +98,10 @@ export type CollectionParams = {
     season: AL_MediaSeason | null
     year: string | null
     isAdult: boolean
+    /** Anime library only — "Show unwatched only" shelf toggle (mirrors web's continueWatchingOnly). */
+    continueWatchingOnly?: boolean
+    /** Manga library only — "Unread chapters only" shelf toggle (mirrors web's unreadOnly). */
+    unreadOnly?: boolean
 }
 
 /** mediaId -> AniList tag names, from the dedicated collection/raw/tags endpoint. */
@@ -112,6 +116,8 @@ export const DEFAULT_COLLECTION_PARAMS: CollectionParams = {
     season: null,
     year: null,
     isAdult: false,
+    continueWatchingOnly: false,
+    unreadOnly: false,
 }
 
 
@@ -370,6 +376,19 @@ export function filterCollectionEntries<T extends (Anime_LibraryCollectionEntry 
     return arr
 }
 
+/**
+ * Keeps only entries that have an unwatched episode available (i.e. present in the
+ * continue-watching list). Used by the anime library "Show unwatched only" shelf toggle
+ * (mirrors web's `continueWatchingOnly` filter). Kept separate from `filterAnimeCollectionEntries`
+ * so shelf builders that already hold a sorted list can apply it without triggering a re-sort.
+ */
+export function filterAnimeEntriesUnwatchedOnly<T extends { mediaId: number }>(
+    entries: T[],
+    continueWatchingList: Anime_Episode[] | null | undefined,
+): T[] {
+    return entries.filter(entry => continueWatchingList?.some(episode => episode.baseAnime?.id === entry.mediaId) ?? false)
+}
+
 export function filterAnimeCollectionEntries(
     entries: Anime_LibraryCollectionEntry[] | null | undefined,
     params: CollectionParams,
@@ -378,6 +397,10 @@ export function filterAnimeCollectionEntries(
     watchHistory: Continuity_WatchHistory | null | undefined,
 ) {
     let arr = filterCollectionEntries(entries, params, showAdultContent)
+
+    if (params.continueWatchingOnly) {
+        arr = filterAnimeEntriesUnwatchedOnly(arr, continueWatchingList)
+    }
 
     // anime-only sorts need episode and watch history context from the library view
     if (getParamValue(params.sorting) === "AIRDATE") {
@@ -410,6 +433,21 @@ export function filterAnimeCollectionEntries(
     return arr
 }
 
+/**
+ * Keeps only entries that have unread chapters available (via the same latest-chapter-number
+ * lookup the UNREAD_CHAPTERS sort uses). Used by the manga library "Unread chapters only" shelf
+ * toggle (mirrors web's `unreadOnly` filter). Kept separate from `filterMangaCollectionEntries`
+ * so shelf builders that already hold a sorted list can apply it without triggering a re-sort.
+ */
+export function filterMangaEntriesUnreadOnly<T extends { mediaId: number, listData?: { progress?: number | null } | null }>(
+    entries: T[],
+    latestChapterNumbers: Parameters<typeof getMangaEntryLatestChapterNumber>[1],
+    storedProviders: Record<string, string>,
+    storedFilters: Record<string, MangaEntryFilters>,
+): T[] {
+    return entries.filter(entry => getMangaUnreadCount(entry as Manga_CollectionEntry, latestChapterNumbers, storedProviders, storedFilters) > 0)
+}
+
 export function filterMangaCollectionEntries(
     entries: Manga_CollectionEntry[] | null | undefined,
     params: CollectionParams,
@@ -419,6 +457,10 @@ export function filterMangaCollectionEntries(
     storedFilters: Record<string, MangaEntryFilters>,
 ) {
     let arr = filterCollectionEntries(entries, params, showAdultContent)
+
+    if (params.unreadOnly) {
+        arr = filterMangaEntriesUnreadOnly(arr, latestChapterNumbers, storedProviders, storedFilters)
+    }
 
     // unread chapter sorting depends on the selected manga provider and filters
     if (getParamValue(params.sorting) === "UNREAD_CHAPTERS") {

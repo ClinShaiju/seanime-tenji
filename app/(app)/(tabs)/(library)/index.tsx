@@ -12,10 +12,11 @@ import { LIBRARY_SEARCH_HEADER_BASE_HEIGHT, LibrarySearchHeader } from "@/compon
 import { LuffyError } from "@/components/shared/luffy-error"
 import { MediaGenreSelector } from "@/components/shared/media-genre-selector"
 import { OfflineBanner } from "@/components/shared/offline-banner"
+import { ShelfFilterToggle } from "@/components/shared/shelf-filter-toggle"
 import { ContinueWatchingItem, useAnimeLibraryCollection } from "@/hooks/use-anime-library-collection"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useIsServerConnected, useServerLocalAnimeRecords } from "@/lib/offline"
-import { filterEntriesByTitle } from "@/lib/utils/filtering"
+import { filterAnimeEntriesUnwatchedOnly, filterEntriesByTitle } from "@/lib/utils/filtering"
 import { useIsFocused } from "@react-navigation/native"
 import { router, useFocusEffect } from "expo-router"
 import { useSetAtom } from "jotai"
@@ -39,6 +40,7 @@ export default function LibraryScreen() {
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
     const [isPullRefreshing, setIsPullRefreshing] = React.useState(false)
     const [selectedGenre, setSelectedGenre] = React.useState<string | null>(null)
+    const [showUnwatchedOnly, setShowUnwatchedOnly] = React.useState(false)
     const serverLocalAnime = useServerLocalAnimeRecords()
 
     const scrollY = useSharedValue(0)
@@ -69,6 +71,14 @@ export default function LibraryScreen() {
         [libraryCollectionList],
     )
 
+    // M11 — "Show unwatched only" needs the raw episode list (continueWatchingList here is
+    // wrapped with sourceView metadata for the hero/continue-watching row).
+    const continueWatchingEpisodes = React.useMemo(
+        () => continueWatchingList.map(item => item.episode),
+        [continueWatchingList],
+    )
+    const hasCurrentShelf = (libraryCollectionList.find(list => list.type === "CURRENT")?.entries?.length ?? 0) > 0
+
     // M8 — genre chips. libraryGenres was deleted from the collection hook as unused
     // (2026-07 audit), so we re-derive the distinct genre list from the collection here.
     const genreOptions = React.useMemo(() => {
@@ -94,7 +104,14 @@ export default function LibraryScreen() {
 
     const shelfSections = React.useMemo<LibraryShelfSection[]>(() => {
         const buildMedia = (type: string) => {
-            let media = libraryCollectionList.find(item => item.type === type)?.entries?.map(entry => entry.media!).filter(Boolean) ?? []
+            let entries = libraryCollectionList.find(item => item.type === type)?.entries ?? []
+            if (type === "CURRENT" && showUnwatchedOnly) {
+                const unwatched = filterAnimeEntriesUnwatchedOnly(entries, continueWatchingEpisodes)
+                // Auto-reset guard: if the filter would empty the shelf, silently show everything
+                // instead (mirrors web's handle-library-collection.ts reset-on-empty behavior).
+                if (unwatched.length > 0) entries = unwatched
+            }
+            let media = entries.map(entry => entry.media!).filter(Boolean)
             if (selectedGenre) media = media.filter(m => m.genres?.includes(selectedGenre))
             return media
         }
@@ -106,7 +123,7 @@ export default function LibraryScreen() {
             { key: "completed", title: "Completed", media: buildMedia("COMPLETED"), sectionIndex: 3 },
             { key: "dropped", title: "Dropped", media: buildMedia("DROPPED"), sectionIndex: 4 },
         ].filter(section => section.media.length > 0)
-    }, [libraryCollectionList, selectedGenre])
+    }, [libraryCollectionList, selectedGenre, showUnwatchedOnly, continueWatchingEpisodes])
 
     useFocusEffect(
         React.useCallback(() => {
@@ -215,6 +232,16 @@ export default function LibraryScreen() {
                                     )}
                                     {isConnected && continueWatchingList.length > 0 && (
                                         <ContinueWatching items={continueWatchingList} />
+                                    )}
+                                    {isConnected && hasCurrentShelf && (
+                                        <View className="px-4 -mb-1">
+                                            <ShelfFilterToggle
+                                                active={showUnwatchedOnly}
+                                                activeLabel="Show all"
+                                                inactiveLabel="Show unwatched only"
+                                                onPress={() => setShowUnwatchedOnly(v => !v)}
+                                            />
+                                        </View>
                                     )}
                                     {isConnected && showGenreSelector && (
                                         <MediaGenreSelector

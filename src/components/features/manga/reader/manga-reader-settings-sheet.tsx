@@ -1,4 +1,4 @@
-import { MANGA_READING_DIRECTION, MANGA_READING_MODE, type MangaReaderSettings } from "@/components/features/manga/reader/manga-reader-state"
+import { MANGA_PAGE_FIT, MANGA_READING_DIRECTION, MANGA_READING_MODE, type MangaReaderSettings } from "@/components/features/manga/reader/manga-reader-state"
 import { RowDivider } from "@/components/shared/row-divider"
 import { Surface } from "@/components/shared/surface"
 import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
@@ -76,6 +76,20 @@ export function MangaReaderSettingsSheet({
                         ]}
                         value={settings.readingDirection}
                         onChange={(value) => onSettingChange("readingDirection", value)}
+                        columns={2}
+                    />
+                </SettingsSection>
+
+                <SettingsSection title="Page Fit">
+                    <OptionGrid
+                        options={[
+                            { value: MANGA_PAGE_FIT.CONTAIN, label: "Contain", icon: "scan-outline" },
+                            { value: MANGA_PAGE_FIT.OVERFLOW, label: "Overflow", icon: "expand-outline" },
+                            { value: MANGA_PAGE_FIT.COVER, label: "Cover", icon: "crop-outline" },
+                            { value: MANGA_PAGE_FIT.TRUE_SIZE, label: "True size", icon: "resize-outline" },
+                        ]}
+                        value={settings.pageFit}
+                        onChange={(value) => onSettingChange("pageFit", value)}
                         columns={2}
                     />
                 </SettingsSection>

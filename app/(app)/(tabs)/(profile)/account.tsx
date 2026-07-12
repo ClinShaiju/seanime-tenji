@@ -1,5 +1,6 @@
 import { useUserChangePassword, useUserSaveDebrid } from "@/api/hooks/user-auth.hooks"
 import { useServerStatus } from "@/atoms/server.atoms"
+import { AniListConnectionSection } from "@/components/features/profile/anilist-connection"
 import { ProfileMenuSection, ProfileMenuToggle, ProfileSubpageHeader, RowDivider } from "@/components/features/profile/profile-menu"
 import { InlineSelect } from "@/components/shared/inline-select"
 import { Button } from "@/components/ui/button"
@@ -89,6 +90,8 @@ export default function AccountScreen() {
                 keyboardShouldPersistTaps="handled"
             >
                 <View className="mx-4 mt-4 gap-4">
+                    <AniListConnectionSection />
+
                     <ProfileMenuSection title="Password">
                         <View className="gap-3 px-4 py-3.5">
                             <Input

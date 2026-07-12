@@ -71,7 +71,7 @@ export function AnimeEntryActionBar({
                     </Button>
                 )}
 
-                {(isConnected && isLocalServer) && (
+                {isConnected && (
                     <Button
                         variant="secondary"
                         className="rounded-xl h-11 px-3.5"

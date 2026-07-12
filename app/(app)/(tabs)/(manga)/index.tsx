@@ -1,4 +1,5 @@
 import { AL_BaseManga } from "@/api/generated/types"
+import { useGetMangaLatestChapterNumbersMap } from "@/api/hooks/manga.hooks"
 import { DownloadedMangaList } from "@/components/features/manga/downloaded-manga-list"
 import { HorizontalMediaCardList } from "@/components/features/media/horizontal-media-card-list"
 import { LibraryHeroCarousel } from "@/components/features/media/library-hero-carousel"
@@ -9,10 +10,12 @@ import { LIBRARY_SEARCH_HEADER_BASE_HEIGHT, LibrarySearchHeader } from "@/compon
 import { LuffyError } from "@/components/shared/luffy-error"
 import { MediaGenreSelector } from "@/components/shared/media-genre-selector"
 import { OfflineBanner } from "@/components/shared/offline-banner"
+import { ShelfFilterToggle } from "@/components/shared/shelf-filter-toggle"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
+import { useStoredMangaSelectionState } from "@/hooks/use-manga-chapters"
 import { useMangaLibraryCollection } from "@/hooks/use-manga-library-collection"
 import { useIsServerConnected } from "@/lib/offline"
-import { filterEntriesByTitle } from "@/lib/utils/filtering"
+import { filterEntriesByTitle, filterMangaEntriesUnreadOnly } from "@/lib/utils/filtering"
 import { useIsFocused } from "@react-navigation/native"
 import { router, useFocusEffect } from "expo-router"
 import * as React from "react"
@@ -35,6 +38,13 @@ export default function MangaLibraryScreen() {
     const deferredSearchQuery = React.useDeferredValue(searchQuery)
     const [isPullRefreshing, setIsPullRefreshing] = React.useState(false)
     const [selectedGenre, setSelectedGenre] = React.useState<string | null>(null)
+    const [showUnreadOnly, setShowUnreadOnly] = React.useState(false)
+
+    // M12 — "Unread chapters only" needs the same latest-chapter-number lookup the
+    // UNREAD_CHAPTERS sort uses; useMangaLibraryCollection doesn't expose it, so read it
+    // straight from the underlying hooks (react-query dedupes the request).
+    const { data: latestChapterNumbers } = useGetMangaLatestChapterNumbersMap()
+    const { storedProviders, storedFilters } = useStoredMangaSelectionState()
 
     const scrollY = useSharedValue(0)
     const scrollHandler = useAnimatedScrollHandler({
@@ -90,7 +100,14 @@ export default function MangaLibraryScreen() {
 
     const shelfSections = React.useMemo<MangaShelfSection[]>(() => {
         const buildMedia = (type: string) => {
-            let media = libraryCollectionList.find(item => item.type === type)?.entries?.map(entry => entry.media!).filter(Boolean) ?? []
+            let entries = libraryCollectionList.find(item => item.type === type)?.entries ?? []
+            if (type === "CURRENT" && showUnreadOnly) {
+                const unread = filterMangaEntriesUnreadOnly(entries, latestChapterNumbers, storedProviders, storedFilters)
+                // Auto-reset guard: if the filter would empty the shelf, silently show everything
+                // instead (mirrors web's handle-manga-collection.ts reset-on-empty behavior).
+                if (unread.length > 0) entries = unread
+            }
+            let media = entries.map(entry => entry.media!).filter(Boolean)
             if (selectedGenre) media = media.filter(m => m.genres?.includes(selectedGenre))
             return media
         }
@@ -102,7 +119,7 @@ export default function MangaLibraryScreen() {
             { key: "completed", title: "Completed", media: buildMedia("COMPLETED"), sectionIndex: 3 },
             { key: "dropped", title: "Dropped", media: buildMedia("DROPPED"), sectionIndex: 4 },
         ].filter(section => section.media.length > 0)
-    }, [libraryCollectionList, selectedGenre])
+    }, [libraryCollectionList, selectedGenre, showUnreadOnly, latestChapterNumbers, storedProviders, storedFilters])
 
     useFocusEffect(
         React.useCallback(() => {
@@ -183,6 +200,16 @@ export default function MangaLibraryScreen() {
                                             isFocused={isFocused}
                                             scrollY={scrollY}
                                         />
+                                    )}
+                                    {isConnected && currentlyReadingEntries.length > 0 && (
+                                        <View className="px-4 -mb-1">
+                                            <ShelfFilterToggle
+                                                active={showUnreadOnly}
+                                                activeLabel="Show all"
+                                                inactiveLabel="Unread chapters only"
+                                                onPress={() => setShowUnreadOnly(v => !v)}
+                                            />
+                                        </View>
                                     )}
                                     {isConnected && showGenreSelector && (
                                         <MediaGenreSelector

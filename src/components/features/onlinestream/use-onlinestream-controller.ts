@@ -108,6 +108,8 @@ export function useOnlinestreamController({ entry }: UseOnlinestreamControllerPa
         data: episodeListResponse,
         isLoading: isLoadingEpisodes,
         isFetching: isFetchingEpisodes,
+        isError: episodeListIsError,
+        isFetched: episodeListIsFetched,
     } = useGetOnlineStreamEpisodeList(mediaId, provider ?? "", dubbed)
 
     const episodes = React.useMemo(
@@ -120,6 +122,8 @@ export function useOnlinestreamController({ entry }: UseOnlinestreamControllerPa
         data: episodeSource,
         isLoading: isLoadingSource,
         isFetching: isFetchingSource,
+        isError: episodeSourceIsError,
+        isFetched: episodeSourceIsFetched,
     } = useGetOnlineStreamEpisodeSource(
         mediaId,
         provider ?? "",
@@ -263,6 +267,11 @@ export function useOnlinestreamController({ entry }: UseOnlinestreamControllerPa
         isLoadingProviders,
         isLoadingEpisodes: isLoadingEpisodes || isFetchingEpisodes,
         isLoadingSource: isLoadingSource || isFetchingSource,
+        // query status flags consumed by the auto-cycler
+        episodeListIsError,
+        episodeListIsFetched,
+        episodeSourceIsError,
+        episodeSourceIsFetched,
         handleEmptyCache,
         isEmptyingCache,
         // play flow
