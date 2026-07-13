@@ -60,7 +60,7 @@ setupQueryPersistence(queryClient)
 // Load the bearer tokens from the iOS Keychain into the sync mirror (migrating any legacy
 // plaintext MMKV copy). Kicked off at module load so it resolves during the splash/auth
 // gate, before authenticated requests fire. Fail-safe: on error the user simply re-logs in.
-hydrateSecureTokens([SERVER_AUTH_TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY])
+const hydratePromise = hydrateSecureTokens([SERVER_AUTH_TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY])
 
 function CompactToast({ icon, iconColor, text }: { icon: React.ComponentProps<typeof Ionicons>["name"]; iconColor: string; text: string }) {
     return (
@@ -107,6 +107,7 @@ export default function RootLayout() {
             const storedTheme = getStoredTheme() ?? "dark"
             setColorScheme(storedTheme)
             setAndroidNavigationBar(storedTheme)
+            await hydratePromise
             setIsColorSchemeLoaded(true)
         })().finally(() => {
             SplashScreen.hideAsync()

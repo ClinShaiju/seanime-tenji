@@ -167,6 +167,10 @@ final class MPVLayerRenderer {
         checkError(mpv_set_option_string(handle, "hwdec-codecs", "all"))
         checkError(mpv_set_option_string(handle, "hwdec-software-fallback", "yes"))
 
+        // Exact seeking (matches Android) — avoids keyframe seeks replaying skipped content
+        checkError(mpv_set_option_string(handle, "hr-seek", "yes"))
+        checkError(mpv_set_option_string(handle, "hr-seek-framedrop", "yes"))
+
         // Subtitle settings
         checkError(mpv_set_option_string(handle, "video-zoom", "0"))
         checkError(mpv_set_option_string(handle, "subs-match-os-language", "yes"))
@@ -643,14 +647,14 @@ final class MPVLayerRenderer {
         guard let handle = mpv else { return }
         let clamped = max(0, seconds)
         cachedPosition = clamped
-        commandSync(handle, ["seek", String(clamped), "absolute"])
+        commandSync(handle, ["seek", String(clamped), "absolute+exact"])
     }
 
     func seek(by seconds: Double) {
         guard let handle = mpv else { return }
         let newPosition = max(0, cachedPosition + seconds)
         cachedPosition = newPosition
-        commandSync(handle, ["seek", String(seconds), "relative"])
+        commandSync(handle, ["seek", String(seconds), "relative+exact"])
     }
 
     func setSpeed(_ speed: Double) {
